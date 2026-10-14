@@ -641,12 +641,12 @@ def app_ja_rodando(porta):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Mapa de agentes do Claude Code')
+    parser = argparse.ArgumentParser(description='Agent Map: live map of your Claude Code sessions')
     parser.add_argument('--porta', type=int, default=8767)
-    parser.add_argument('--dias', type=float, default=14, help='janela das sessoes fechadas')
-    parser.add_argument('--abrir', action='store_true', help='abre o Chrome em modo app')
-    parser.add_argument('--foco', default='', help="recorte da janela: um workspace, um projeto avulso ou regiao/projeto")
-    parser.add_argument('--config', default=configuracao.ARQUIVO, help='config.json com os workspaces (opcional)')
+    parser.add_argument('--dias', type=float, default=14, help='days of closed sessions to show')
+    parser.add_argument('--abrir', action='store_true', help='open the browser window (Chrome/Chromium app mode)')
+    parser.add_argument('--foco', default='', help='focus: a workspace, a project or region/project')
+    parser.add_argument('--config', default=configuracao.ARQUIVO, help='config.json with workspaces (optional)')
     args = parser.parse_args()
     try:
         cfg = configuracao.carregar(args.config)
@@ -661,9 +661,9 @@ def main():
     if porta_ocupada(args.porta):
         if args.abrir and app_ja_rodando(args.porta):  # so mais uma janela, sem segundo servidor
             abrir_chrome(url)
-            print('Mapa ja rodando; janela aberta em ' + url, flush=True)
+            print('Agent Map already running; window opened at ' + url, flush=True)
             return
-        sys.exit('porta %d ocupada%s' % (args.porta, '' if not args.abrir else ' por outro programa'))
+        sys.exit('port %d is in use%s' % (args.porta, '' if not args.abrir else ' by another program'))
 
     token = secrets.token_urlsafe(24)
     painel.REMOTOS[:] = cfg.remotos
@@ -677,8 +677,8 @@ def main():
     app.on_startup.append(ao_subir)
     removidos = anexos.Anexos().limpar_antigos()
     if removidos:
-        print('anexos antigos removidos: %d' % removidos, flush=True)
-    print('Mapa de agentes em http://127.0.0.1:%d' % args.porta, flush=True)
+        print('old attachments removed: %d' % removidos, flush=True)
+    print('Agent Map on http://127.0.0.1:%d' % args.porta, flush=True)
     web.run_app(app, host='127.0.0.1', port=args.porta, print=None)
 
 

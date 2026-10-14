@@ -2,7 +2,7 @@
 # Instala o Mapa de agentes como app Linux: servico systemd --user, icone, atalho (.desktop) e os
 # hooks do Claude Code (uso do plano e alerta de "precisa de voce") no ~/.claude/settings.json.
 # Idempotente: pode rodar de novo (atualiza arquivos e reinicia o servico so se algo mudou).
-# Opcoes: --sem-hooks (nao mexe no settings.json)
+# Opcoes: --no-hooks (nao mexe no settings.json)
 set -euo pipefail
 
 PASTA="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
@@ -15,16 +15,16 @@ UNIT="$UNIT_DIR/mapa-agentes.service"
 DESKTOP="$APPS_DIR/mapa-agentes.desktop"
 ICONE="$ICON_DIR/mapa-agentes.svg"
 HOOKS=1
-[ "${1:-}" = "--sem-hooks" ] && HOOKS=0
+case "${1:-}" in --no-hooks|--sem-hooks) HOOKS=0 ;; esac
 
 falta() { echo "ERRO: $1" >&2; exit 1; }
-command -v python3 >/dev/null || falta "python3 nao encontrado"
-python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' || falta "precisa de Python 3.10 ou mais novo"
-python3 -c 'import aiohttp' 2>/dev/null || falta "falta o aiohttp: pip install --user aiohttp (ou: sudo apt install python3-aiohttp)"
-command -v systemctl >/dev/null || falta "precisa de systemd (servico --user)"
-command -v claude >/dev/null || [ -x "$HOME/.local/bin/claude" ] || echo "AVISO: comando 'claude' nao encontrado. Instale o Claude Code e faca login (claude) antes de usar." >&2
+command -v python3 >/dev/null || falta "python3 not found"
+python3 -c 'import sys; sys.exit(sys.version_info < (3, 10))' || falta "Python 3.10 or newer is required"
+python3 -c 'import aiohttp' 2>/dev/null || falta "aiohttp is missing: pip install --user aiohttp (or: sudo apt install python3-aiohttp)"
+command -v systemctl >/dev/null || falta "systemd (user services) is required"
+command -v claude >/dev/null || [ -x "$HOME/.local/bin/claude" ] || echo "WARNING: 'claude' command not found. Install Claude Code and log in (run: claude) before using the map." >&2
 # config.json invalido: melhor falhar aqui do que o servico ficar reiniciando
-python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import config; config.carregar()" "$PASTA" || falta "corrija o ~/.config/mapa-agentes/config.json"
+python3 -c "import sys; sys.path.insert(0, sys.argv[1]); import config; config.carregar()" "$PASTA" || falta "fix ~/.config/mapa-agentes/config.json"
 
 mkdir -p "$UNIT_DIR" "$APPS_DIR" "$ICON_DIR"
 MUDOU=0
@@ -71,15 +71,15 @@ import config
 ws = config.carregar().workspaces
 print(';'.join(['tudo'] + [w.id for w in ws]) + ';')
 for w in ws:
-    print('\n[Desktop Action %s]\nName=Só %s\nExec=/usr/bin/env python3 "%s/servidor.py" --abrir --foco %s' % (w.id, w.nome, sys.argv[1], w.id))
+    print('\n[Desktop Action %s]\nName=Only %s\nExec=/usr/bin/env python3 "%s/servidor.py" --abrir --foco %s' % (w.id, w.nome, sys.argv[1], w.id))
 PY
 )"
 gravar "$DESKTOP" <<DESK_EOF && MUDOU=1 || true
 [Desktop Entry]
 Type=Application
 Version=1.0
-Name=Mapa de agentes
-Comment=Mapa 2D das sessões do Claude Code
+Name=Agent Map
+Comment=Live map of your Claude Code sessions
 Exec=/usr/bin/env python3 "$PASTA/servidor.py" --abrir
 Icon=mapa-agentes
 Terminal=false
@@ -88,7 +88,7 @@ Categories=Development;
 Actions=$(echo "$ACOES" | head -1)
 
 [Desktop Action tudo]
-Name=Tudo
+Name=All
 Exec=/usr/bin/env python3 "$PASTA/servidor.py" --abrir
 $(echo "$ACOES" | tail -n +2)
 DESK_EOF
@@ -99,8 +99,8 @@ if command -v update-desktop-database >/dev/null 2>&1; then update-desktop-datab
 if command -v gtk-update-icon-cache >/dev/null 2>&1; then gtk-update-icon-cache -f -q -t "$HICOLOR" 2>/dev/null || true; fi
 
 if [ "$HOOKS" = 1 ]; then
-  echo "Hooks do Claude Code (~/.claude/settings.json, com backup):"
-  python3 "$PASTA/configurar_claude.py" instalar
+  echo "Claude Code hooks (~/.claude/settings.json, backed up first):"
+  python3 "$PASTA/configurar_claude.py" install
 fi
 
 systemctl --user daemon-reload
@@ -110,13 +110,13 @@ if systemctl --user is-active --quiet mapa-agentes.service; then
 else
   # a porta tem que estar livre: um servidor iniciado a mao (nao pelo systemd) impede o servico de subir
   if ss -ltn 2>/dev/null | grep -q "127.0.0.1:$PORTA "; then
-    echo "AVISO: a porta $PORTA esta ocupada por outro processo (servidor manual?). Pare-o e rode de novo." >&2
+    echo "WARNING: port $PORTA is in use by another process (a server started by hand?). Stop it and run again." >&2
     exit 1
   fi
   systemctl --user start mapa-agentes.service
 fi
 
-echo "Mapa de agentes instalado: http://127.0.0.1:$PORTA"
-echo "  servico: systemctl --user status mapa-agentes"
-echo "  atalho : menu de aplicativos > Mapa de agentes"
-echo "  config : ~/.config/mapa-agentes/config.json (opcional, ver config.exemplo.json; rode este script de novo depois de mudar)"
+echo "Agent Map installed: http://127.0.0.1:$PORTA"
+echo "  service : systemctl --user status mapa-agentes"
+echo "  launcher: applications menu > Agent Map"
+echo "  config  : ~/.config/mapa-agentes/config.json (optional, see config.example.json; run this script again after changing it)"

@@ -1,0 +1,20 @@
+{
+  "projectsDir": "~/dev",
+  "workspaces": [
+    {
+      "id": "acme",
+      "name": "Acme",
+      "path": "~/dev/acme",
+      "color": "#b478ff",
+      "aliases": { "online-store": ["store", "checkout"] }
+    },
+    {
+      "id": "shop",
+      "name": "Shop",
+      "path": "~/dev/shop-workspace",
+      "color": "#46a0ff",
+      "siblings": "shop-*",
+      "pinned": "shop-*"
+    }
+  ]
+}

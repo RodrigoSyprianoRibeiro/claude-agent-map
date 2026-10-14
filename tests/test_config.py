@@ -89,10 +89,28 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.carregar(bom, HOME).workspaces[0].id, 'a')
 
     def test_exemplo_do_repositorio_e_valido(self):
-        exemplo = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.exemplo.json')
+        exemplo = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'config.example.json')
         c = config.carregar(exemplo, HOME)
         self.assertGreaterEqual(len(c.workspaces), 1)
 
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestChavesEmIngles(unittest.TestCase):
+    def test_ingles_e_portugues_dao_o_mesmo_resultado(self):
+        en = config.Config({'projectsDir': '~/code', 'workspaces': [{
+            'id': 'shop', 'name': 'Shop', 'path': '~/code/shop', 'color': '#112233', 'aliases': {'app': ['store']},
+            'siblings': 'shop-*', 'pinned': 'shop-*', 'remote': {'inventory': 'inv.json', 'repoByPath': {'web': 'shop-web'}}}]}, HOME)
+        pt = config.Config({'pastaProjetos': '~/code', 'workspaces': [{
+            'id': 'shop', 'nome': 'Shop', 'pasta': '~/code/shop', 'cor': '#112233', 'apelidos': {'app': ['store']},
+            'irmaos': 'shop-*', 'nosFixos': 'shop-*', 'remoto': {'inventario': 'inv.json', 'repoDoCaminho': {'web': 'shop-web'}}}]}, HOME)
+        a, b = en.workspaces[0], pt.workspaces[0]
+        self.assertEqual(en.pasta_projetos, pt.pasta_projetos)
+        self.assertEqual((a.nome, a.pasta, a.cor, a.apelidos, a.irmaos, a.nos_fixos, a.remoto),
+                         (b.nome, b.pasta, b.cor, b.apelidos, b.irmaos, b.nos_fixos, b.remoto))
+
+    def test_as_duas_formas_juntas_e_erro(self):
+        with self.assertRaises(ValueError):
+            config.Config({'workspaces': [{'id': 'a', 'path': '~/dev/a', 'pasta': '~/dev/b'}]}, HOME)

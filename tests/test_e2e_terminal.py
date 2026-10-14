@@ -213,7 +213,7 @@ def servico_instalado():
 
 
 @unittest.skipUnless(os.environ.get('E2E') == '1' and NO_E2E, 'defina E2E=1 e E2E_NO=<regiao/no> para rodar com claude de verdade')
-@unittest.skipUnless(servico_instalado(), 'AVISO: servico mapa-agentes nao esta ativo (rode instalar.sh); regressao do restart pulada')
+@unittest.skipUnless(servico_instalado(), 'AVISO: servico mapa-agentes nao esta ativo (rode install.sh); regressao do restart pulada')
 class TestReinicioDoServicoE2E(unittest.IsolatedAsyncioTestCase):
     """Regressao: reiniciar o servico NAO pode matar o daemon do claude nem as sessoes --bg."""
     BASE = 'http://127.0.0.1:8767'

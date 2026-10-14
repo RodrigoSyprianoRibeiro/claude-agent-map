@@ -1,137 +1,142 @@
-# Mapa de Agentes
+# Claude Agent Map
 
-Um mapa vivo de todas as sessões do [Claude Code](https://claude.com/claude-code) da sua máquina. Cada projeto é um ponto no mapa e cada sessão orbita o seu projeto, com a cor do estado: **trabalhando**, **sua vez** ou **precisa de você**. Dá para conversar com qualquer agente, aprovar permissões e abrir sessões novas sem trocar de janela.
+**English** · [Português](README.pt-BR.md)
 
-![Mapa de agentes](docs/mapa.png)
+A live map of every [Claude Code](https://claude.com/claude-code) session on your machine. Each project is a point on the map and each session orbits its project, colored by state: **working**, **your turn** or **needs you**. Chat with any agent, answer permission prompts and start new sessions without switching windows.
 
-> *English summary:* a local web app (Linux) that shows every Claude Code session on your machine as a live 2D map, grouped by project, with chat, permission prompts and new background sessions in one window. It uses your own Claude Code login; nothing leaves `127.0.0.1`. UI in Brazilian Portuguese.
+![Agent Map](docs/map.png)
 
-## O que ele faz
+Running agents in five projects at once usually means five editor windows and a lot of alt-tab to find out which one is waiting for you. The map shows all of them at a glance and puts the ones that need you first.
 
-- **Mapa de todos os projetos:** sessões abertas no terminal, no VS Code ou em segundo plano, e as fechadas dos últimos 14 dias.
-- **Quem precisa de você aparece primeiro:** a sessão que pede permissão fica vermelha, com contador no topo e notificação na área de trabalho.
-- **Conversa embutida:** abre a conversa de qualquer sessão em segundo plano (`claude --bg`), envia mensagens e imagens, troca modelo e esforço, aprova permissões por botões. O terminal de verdade fica a um clique.
-- **Nova sessão em um clique** no projeto selecionado; a aba ganha o título da sessão assim que ele existe.
-- **Vários agentes lado a lado**, em colunas.
-- **Uso do plano** (janelas de 5 h e de 7 dias) sempre à vista.
-- **Projeto pelo contexto:** sessão aberta na raiz de um workspace vai para o subprojeto citado no título ou no primeiro prompt (aceita erro de digitação e apelidos).
+## Features
 
-![Conversa com um agente](docs/conversa.png)
+- **Every project on one map:** sessions from the terminal, VS Code or the background (`claude --bg`), plus closed ones from the last 14 days.
+- **Needs-you first:** a session waiting for a permission turns red, bumps the counter at the top and sends a desktop notification.
+- **Built-in chat:** open any background session, send messages and images, switch model and effort, answer permission prompts with buttons. The real terminal is one click away.
+- **New session in one click** in the selected project. The tab takes the session's title as soon as it has one.
+- **Side by side:** several agents in columns.
+- **Plan usage** (5-hour and 7-day windows) always visible.
+- **Project from context:** a session started at the root of a workspace is placed on the subproject named in its title or first prompt (typos and aliases included).
 
-## Sua conta do Claude
+![Chatting with an agent](docs/chat.png)
 
-O app não usa chave de API nem pede login. Ele lê os arquivos locais do Claude Code (`~/.claude`) e chama o próprio comando `claude` para criar, retomar e conectar sessões. Ou seja, **usa a conta em que o seu Claude Code já está logado**. Quem tiver o Claude Code instalado e logado só precisa instalar o mapa.
+## Your Claude account
 
-O uso do plano aparece para assinantes Pro e Max: o Claude Code informa os limites à linha de status (`statusLine`), e o instalador registra um hook que grava esse dado para o mapa.
+No API key, no extra login. The app reads Claude Code's local files (`~/.claude`) and runs the `claude` command itself to create, resume and attach to sessions, so **it uses whatever account your Claude Code is logged into**. If Claude Code works on your machine, the map works too.
 
-## Requisitos
+Plan usage shows up for Pro and Max subscribers: Claude Code passes the limits to the status line (`statusLine`), and the installer adds a small hook that saves them for the map.
 
-- Linux com systemd (o app roda como serviço `systemd --user`)
-- Python 3.10 ou mais novo, com `aiohttp`
-- [Claude Code](https://docs.claude.com/en/docs/claude-code) instalado e logado (`claude`)
-- Opcional: Google Chrome ou Chromium (abre como janela de app), `notify-send` (notificações)
+## Requirements
 
-## Instalação
+- Linux with systemd (the app runs as a `systemd --user` service)
+- Python 3.10+ with `aiohttp`
+- [Claude Code](https://docs.claude.com/en/docs/claude-code) installed and logged in (`claude`)
+- Optional: Google Chrome or Chromium (opens as an app window), `notify-send` (desktop notifications)
+
+## Install
 
 ```bash
-git clone https://github.com/RodrigoSyprianoRibeiro/mapa-agentes.git ~/dev/mapa-agentes
-cd ~/dev/mapa-agentes
-pip install --user -r requirements.txt   # ou: sudo apt install python3-aiohttp
-./instalar.sh
+git clone https://github.com/RodrigoSyprianoRibeiro/claude-agent-map.git ~/dev/claude-agent-map
+cd ~/dev/claude-agent-map
+pip install --user -r requirements.txt   # or: sudo apt install python3-aiohttp
+./install.sh
 ```
 
-Depois abra **Mapa de agentes** no menu de aplicativos, ou acesse <http://127.0.0.1:8767>.
+Then open **Agent Map** from your applications menu, or go to <http://127.0.0.1:8767>.
 
-O instalador:
+The installer:
 
-1. cria o serviço `mapa-agentes` (`systemctl --user status mapa-agentes`), o ícone e o atalho;
-2. registra dois hooks no `~/.claude/settings.json`, com backup antes de gravar:
-   - `statusLine` → `hooks/status-uso.py`, que grava o uso do plano. **Se você já tem um statusLine, ele é mantido**: o seu continua rodando e a linha que você vê não muda;
-   - `Notification` → `hooks/notificacao-sessao.py`, que marca a sessão que precisa de você. É somado aos hooks que você já tiver.
+1. creates the `mapa-agentes` user service (`systemctl --user status mapa-agentes`), the icon and the launcher;
+2. adds two hooks to `~/.claude/settings.json`, backing it up first:
+   - `statusLine` → `hooks/status-uso.py`, which saves your plan usage. **If you already have a status line, it is kept**: yours still runs and shows the same line;
+   - `Notification` → `hooks/notificacao-sessao.py`, which flags sessions that need you. It is added next to any hooks you already have.
 
-Use `./instalar.sh --sem-hooks` para não mexer no `settings.json`. Rode o instalador de novo sempre que atualizar o repositório ou mudar o config.
+Run `./install.sh --no-hooks` to leave `settings.json` alone. Run the installer again after pulling updates or changing the config.
 
-## Configuração (opcional)
+## Configuration (optional)
 
-Sem configuração, cada pasta de `~/dev` vira uma região no mapa. Para agrupar vários projetos numa região grande (com botão de foco na barra e atalho no menu), crie `~/.config/mapa-agentes/config.json`. Há um modelo em [`config.exemplo.json`](config.exemplo.json).
+With no config, every folder in `~/dev` becomes a region on the map. To group several projects into one big region (with its own focus button and launcher shortcut), create `~/.config/mapa-agentes/config.json`. See [`config.example.json`](config.example.json).
 
 ```json
 {
-  "pastaProjetos": "~/dev",
+  "projectsDir": "~/dev",
   "workspaces": [
     {
-      "id": "empresa",
-      "nome": "Empresa",
-      "pasta": "~/dev/empresa",
-      "cor": "#b478ff",
-      "apelidos": { "portal-vagas": ["vagas", "recrutamento"] }
+      "id": "acme",
+      "name": "Acme",
+      "path": "~/dev/acme",
+      "color": "#b478ff",
+      "aliases": { "online-store": ["store", "checkout"] }
     },
     {
-      "id": "loja",
-      "nome": "Loja",
-      "pasta": "~/dev/loja-workspace",
-      "irmaos": "loja-*",
-      "nosFixos": "loja-*"
+      "id": "shop",
+      "name": "Shop",
+      "path": "~/dev/shop-workspace",
+      "siblings": "shop-*",
+      "pinned": "shop-*"
     }
   ]
 }
 ```
 
-| Campo | O que faz |
+| Key | What it does |
 |---|---|
-| `pastaProjetos` | Onde ficam seus projetos (padrão `~/dev`). Cada pasta de primeiro nível vira uma região. |
-| `workspaces[].id` | Identificador (minúsculas, números, `-` e `_`), usado na URL (`?foco=empresa`). |
-| `workspaces[].pasta` | Pasta que agrupa projetos. Cada subpasta vira um nó. |
-| `nome`, `cor` | Rótulo e cor (`#rrggbb`) da região. |
-| `apelidos` | Outros nomes de uma subpasta, para reconhecer o projeto pelo título ou prompt da sessão. O nome da própria pasta já vale sem apelido. |
-| `irmaos` | Padrão de pastas em `pastaProjetos` que pertencem ao workspace como nó próprio (worktrees, cópias). |
-| `nosFixos` | Padrão de subpastas com `.git` que aparecem mesmo sem sessão, para abrir sessão nova ali. |
-| `remoto` | Opcional: `{"inventario": ".claude/inventario.json", "repoDoCaminho": {...}}`, para reconhecer o repositório de uma sessão que trabalha num servidor por `ssh`. |
+| `projectsDir` | Where your projects live (default `~/dev`). Each top-level folder becomes a region. |
+| `workspaces[].id` | Lowercase id (letters, digits, `-`, `_`), used in the URL (`?foco=acme`). |
+| `workspaces[].path` | A folder that groups projects. Each subfolder becomes a node. |
+| `name`, `color` | Region label and color (`#rrggbb`). |
+| `aliases` | Other names for a subfolder, used to match a session's title or prompt. The folder name itself always works. |
+| `siblings` | Folder pattern in `projectsDir` that belongs to the workspace as its own node (worktrees, copies). |
+| `pinned` | Subfolders with a `.git` directory matching this pattern are always shown, so you can start sessions there. |
+| `remote` | Optional `{"inventory": ".claude/inventory.json", "repoByPath": {...}}` to recognize the repo of a session working on a server over `ssh`. |
 
-## Uso
+## Usage
 
-- **Clique** numa sessão da lista: centraliza no mapa e abre a conversa. **Clique** num nó: seleciona o projeto para o `+ sessão`.
-- **`+ sessão`** cria uma sessão em segundo plano no projeto selecionado; **`▾`** abre opções (prompt, nome, modelo, esforço).
-- **Atalhos:** `1` tudo, `2` a `9` workspaces, `0` enquadrar, `/` buscar, `+` e `-` zoom, `Esc` fechar o detalhe, `Ctrl+Esc` alternar entre conversa e terminal.
-- Arraste os nós para reorganizar; a posição fica salva.
-- Sessões abertas no VS Code ou num terminal comum aparecem em **modo leitura**. Para conversar pelo mapa, use **Assumir aqui** numa sessão fechada ou crie a sessão pelo `+ sessão`.
+- **Click** a session in the list: the map centers on it and opens the chat. **Click** a node: selects the project for `+ session`.
+- **`+ session`** starts a background session in the selected project; **`▾`** opens options (prompt, name, model, effort).
+- **Keys:** `1` all, `2`–`9` workspaces, `0` fit, `/` search, `+` and `-` zoom, `Esc` close details, `Ctrl+Esc` switch between chat and terminal.
+- Drag nodes to rearrange them; positions are saved.
+- Sessions open in VS Code or in a regular terminal are **read-only** here. To chat from the map, use **Take over here** on a closed session or start one with `+ session`.
+- The UI follows your browser language (English or Portuguese). Force it with `?lang=en` or `?lang=pt`.
 
-## Segurança
+## Security
 
-Os transcritos do Claude Code têm comandos, caminhos e às vezes segredos, então o servidor:
+Claude Code transcripts contain commands, paths and sometimes secrets, so the server:
 
-- escuta só em `127.0.0.1` e recusa requisições com `Host` diferente (proteção contra DNS rebinding);
-- exige `Origin` local e um token gerado a cada início, que só a página servida conhece, em toda ação que executa algo (criar sessão, terminal, anexos);
-- nunca aceita caminho vindo da página: a pasta de uma sessão nova sai do layout, e só pastas dentro da sua home.
+- listens on `127.0.0.1` only and rejects requests with a foreign `Host` header (DNS rebinding protection);
+- requires a local `Origin` and a per-run token, known only to the page it serves, for every action that runs something (new session, terminal, attachments);
+- never takes a path from the page: a new session's folder comes from the server-side layout, and only folders inside your home are allowed.
 
-## Desinstalar
+## Uninstall
 
 ```bash
-./desinstalar.sh
+./uninstall.sh
 ```
 
-Remove o serviço, o atalho e os hooks (o seu `statusLine` original volta). Config e posições ficam em `~/.config/mapa-agentes`.
+Removes the service, the launcher and the hooks (your original `statusLine` comes back). Config and node positions stay in `~/.config/mapa-agentes`.
 
-## Desenvolvimento
+## Development
 
 ```bash
 python3 -m unittest discover -s tests
 ```
 
-Os testes fim a fim usam o `claude` de verdade (gastam alguns tokens) e criam e removem uma sessão de teste num nó do seu mapa:
+End-to-end tests drive the real `claude` CLI (they spend a few tokens) and create and remove a test session on a node of your map:
 
 ```bash
-E2E=1 E2E_NO=meu-projeto/geral python3 -m unittest discover -s tests -p test_e2e_terminal.py
+E2E=1 E2E_NO=my-project/geral python3 -m unittest discover -s tests -p test_e2e_terminal.py
 ```
 
-## Limitações
+The code was written in Portuguese (identifiers and comments); the UI and docs are bilingual.
 
-- Só Linux (usa `/proc`, `systemd --user` e PTY).
-- Lê formatos internos do Claude Code (transcritos `.jsonl`, `~/.claude/sessions`), que podem mudar entre versões.
-- Conversa e terminal embutidos funcionam com sessões em segundo plano (`claude --bg`).
+## Limitations
 
-Projeto independente, sem vínculo com a Anthropic. Claude e Claude Code são marcas da Anthropic.
+- Linux only (uses `/proc`, `systemd --user` and PTYs).
+- Reads Claude Code's internal formats (`.jsonl` transcripts, `~/.claude/sessions`), which may change between versions.
+- Built-in chat and terminal work with background sessions (`claude --bg`).
 
-## Licença
+This is an independent project, not affiliated with Anthropic. Claude and Claude Code are trademarks of Anthropic.
 
-[MIT](LICENSE). As bibliotecas em `static/vendor` (xterm.js, marked, DOMPurify) mantêm as licenças delas, incluídas na mesma pasta.
+## License
+
+[MIT](LICENSE). The libraries in `static/vendor` (xterm.js, marked, DOMPurify) keep their own licenses, included in that folder.

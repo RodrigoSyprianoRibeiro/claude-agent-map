@@ -412,6 +412,312 @@
 <script>
 'use strict';
 const TOKEN = '__TOKEN__';
+
+// ---------- idioma (pt-BR / en): ?lang= na URL > localStorage > navigator.language ----------
+const LANG = (function idioma() {
+  let v = '';
+  try { v = (new URLSearchParams(location.search).get('lang') || '').toLowerCase(); } catch (_) { v = ''; }
+  if (v === 'pt' || v === 'en') { try { localStorage.setItem('mapa.lang', v); } catch (_) { /* opcional */ } return v; }
+  try { const s = localStorage.getItem('mapa.lang'); if (s === 'pt' || s === 'en') return s; } catch (_) { /* opcional */ }
+  return /^pt/i.test(navigator.language || '') ? 'pt' : 'en';
+})();
+const LOCALE = LANG === 'en' ? 'en-US' : 'pt-BR';
+// <i18n> dicionario EN, chave = texto em portugues exatamente como aparece (testado por test_i18n.py via node)
+const EN = {
+  // barra superior, lista, legenda, doca (HTML estatico)
+  'Mapa de agentes': 'Agent Map',
+  'MAPA DE AGENTES': 'AGENT MAP',
+  'Mapa': 'Map',
+  'Mapa das sessões do Claude Code': 'Map of Claude Code sessions',
+  'Precisam de você': 'Need you',
+  'precisam de você': 'need you',
+  'Trabalhando': 'Working',
+  'trabalhando': 'working',
+  'Sua vez': 'Your turn',
+  'sua vez': 'your turn',
+  'Foco': 'Focus',
+  'Tudo': 'All',
+  'Tudo (1)': 'All (1)',
+  'Projetos avulsos': 'Standalone projects',
+  'Projeto': 'Project',
+  'sem conexão': 'offline',
+  'Buscar  ( / )': 'Search  ( / )',
+  'Buscar': 'Search',
+  'Nova sessão agora (Opus, esforço high) na pasta do nó selecionado ou do foco. Shift+clique: com opções.':
+    'New session now (Opus, high effort) in the folder of the selected or focused node. Shift+click: with options.',
+  '+ sessão': '+ session',
+  'Nova sessão com nome, prompt, modelo e esforço': 'New session with name, prompt, model and effort',
+  'Nova sessão com opções': 'New session with options',
+  'Nova janela: abre este recorte em outra janela': 'New window: open this view in another window',
+  'Nova janela': 'New window',
+  'Enquadrar tudo (0)': 'Fit all (0)',
+  'Enquadrar': 'Fit',
+  'Agora': 'Now',
+  'AGORA': 'NOW',
+  'Uso do plano': 'Plan usage',
+  'Recolher lista': 'Collapse list',
+  'precisa de você': 'needs you',
+  'fechada': 'closed',
+  'roda: zoom · arrastar: mover · arrastar nó: reposicionar · duplo clique na região: zoom · 0: enquadrar':
+    'wheel: zoom · drag: pan · drag node: move · double-click region: zoom · 0: fit',
+  'Terminais': 'Terminals',
+  'Arraste para redimensionar': 'Drag to resize',
+  'Maximizar a doca (todas as colunas)': 'Maximize the dock (all columns)',
+  'Maximizar': 'Maximize',
+  'Restaurar': 'Restore',
+  'Esconder a doca (os terminais continuam conectados)': 'Hide the dock (terminals stay connected)',
+  'Recolher': 'Collapse',
+  // dialogo de nova sessao
+  'Nova sessão em segundo plano': 'New background session',
+  'Prompt inicial (opcional)': 'Initial prompt (optional)',
+  'O que ela deve fazer?': 'What should it do?',
+  'Nome (opcional)': 'Name (optional)',
+  'Modelo': 'Model',
+  'Esforço': 'Effort',
+  'padrão': 'default',
+  'Cancelar': 'Cancel',
+  'Criar e abrir terminal': 'Create and open terminal',
+  'Criando…': 'Creating…',
+  'Nenhum projeto com pasta conhecida.': 'No project with a known folder.',
+  'Escolha o projeto da sessão.': 'Choose a project for the session.',
+  'Esta pasta ainda não é confiável para o Claude: use o botão "+ sessão" (clique direto) nela para confiar.':
+    'Claude does not trust this folder yet: click "+ session" on it (plain click) to trust it.',
+  'Não foi possível criar ({0})': 'Could not create ({0})',
+  // tempos e estados
+  'aguardando há {0}': 'waiting for {0}',
+  'aguardando você': 'waiting for you',
+  'rodando há {0}': 'running for {0}',
+  'rodando há mais de {0}': 'running for over {0}',
+  'rodando': 'running',
+  'terminou há {0}': 'finished {0} ago',
+  'terminou': 'finished',
+  'fechada há {0}': 'closed {0} ago',
+  'concluído': 'done',
+  'parado': 'stopped',
+  'durou {0} · terminou há {1}': 'took {0} · finished {1} ago',
+  'parado há {0}': 'stopped {0} ago',
+  // seletores e foco
+  'Projetos ({0})': 'Projects ({0})',
+  'todos os projetos': 'all projects',
+  // avisos gerais e colunas da doca
+  'sem conexão com o servidor': 'cannot reach the server',
+  'No máximo {0} colunas.': 'At most {0} columns.',
+  'Só há uma aba nesta coluna: abra outra sessão ou arraste uma aba para o lado.':
+    'This column has only one tab: open another session or drag a tab to the side.',
+  'Arraste para ajustar a largura': 'Drag to adjust the width',
+  'Dividir: mover esta aba para uma nova coluna à direita (Ctrl+\\)': 'Split: move this tab to a new column on the right (Ctrl+\\)',
+  'Dividir em nova coluna': 'Split into new column',
+  // abas, terminal e conversa
+  'Fechar a aba (só desanexa: a sessão continua rodando)': 'Close tab (detaches only: the session keeps running)',
+  'Fechar terminal {0}': 'Close terminal {0}',
+  'Conversa': 'Chat',
+  'Terminal': 'Terminal',
+  'Mensagens renderizadas: selecione e copie à vontade': 'Rendered messages: select and copy freely',
+  'O terminal do Claude (Ctrl+Esc alterna)': 'The Claude terminal (Ctrl+Esc toggles)',
+  'erro no envio': 'send failed',
+  '[desanexado: a sessão continua rodando]': '[detached: the session keeps running]',
+  'Desanexado: a sessão continua rodando em segundo plano. Reabra pelo mapa.':
+    'Detached: the session keeps running in the background. Reopen it from the map.',
+  'Biblioteca do terminal não carregou.': 'The terminal library failed to load.',
+  'iniciando…': 'starting…',
+  'iniciando a sessão…': 'starting the session…',
+  'Iniciando a sessão… você já pode escrever: a mensagem vai assim que ela conectar.':
+    'Starting the session… you can type now: the message is sent as soon as it connects.',
+  'Sessão pronta. Escreva abaixo.': 'Session ready. Type below.',
+  'Sessão criada, mas a aba foi fechada (ela segue rodando).': 'Session created, but the tab was closed (it keeps running).',
+  'Não foi possível criar a sessão.': 'Could not create the session.',
+  'não foi possível criar a sessão': 'could not create the session',
+  'falhou': 'failed',
+  'pasta não confiável': 'untrusted folder',
+  'Esta pasta ainda não é confiável para o Claude.': 'Claude does not trust this folder yet.',
+  'Confiar nesta pasta': 'Trust this folder',
+  'abrindo o diálogo oficial de confiança… responda aqui com o teclado': 'opening the official trust dialog… answer here with the keyboard',
+  'confiar na pasta?': 'trust folder?',
+  'confiança aceita; criando a sessão…': 'folder trusted; creating the session…',
+  'pasta não confiada': 'folder not trusted',
+  'Pasta não confiada.': 'Folder not trusted.',
+  'Fechar aba': 'Close tab',
+  'A conexão do diálogo de confiança caiu.': 'The trust dialog connection dropped.',
+  'Tentar de novo': 'Try again',
+  'Aba fechada (só desanexa): a sessão continua rodando em segundo plano.': 'Tab closed (detached only): the session keeps running in the background.',
+  // composer
+  'Só imagens png, jpeg, webp ou gif.': 'Only png, jpeg, webp or gif images.',
+  'Imagem maior que 15 MB.': 'Image larger than 15 MB.',
+  'Falha no envio da imagem ({0})': 'Image upload failed ({0})',
+  'Falha no envio da imagem.': 'Image upload failed.',
+  'Mensagem (Enter envia · Shift+Enter quebra linha · cole ou arraste imagens)': 'Message (Enter to send · Shift+Enter for a new line · paste or drop images)',
+  'Mensagem para a sessão': 'Message to the session',
+  '+ anexar imagem': '+ attach image',
+  'Anexar imagem (ou cole com Ctrl+V / arraste para cá)': 'Attach image (or paste with Ctrl+V / drop it here)',
+  'modelo': 'model',
+  'Trocar o modelo (/model)': 'Change model (/model)',
+  'esforço': 'effort',
+  'esforço: {0}': 'effort: {0}',
+  'Trocar o esforço (/effort)': 'Change effort (/effort)',
+  'Interromper o que a sessão está fazendo (envia Esc)': 'Interrupt what the session is doing (sends Esc)',
+  'Enviar (Enter)': 'Send (Enter)',
+  'Enviar': 'Send',
+  'Na fila: envio assim que o terminal conectar.': 'Queued: will send as soon as the terminal connects.',
+  'Terminal desconectado.': 'Terminal disconnected.',
+  'imagem anexada': 'attached image',
+  'Remover anexo': 'Remove attachment',
+  'Solte uma imagem (png, jpeg, webp ou gif).': 'Drop an image (png, jpeg, webp or gif).',
+  '/model {0} enviado. Se o CLI pedir confirmação, responda no terminal.': '/model {0} sent. If the CLI asks for confirmation, answer in the terminal.',
+  // conversa renderizada
+  'copiar': 'copy',
+  'copiado': 'copied',
+  'carregar mensagens anteriores': 'load earlier messages',
+  'carregando…': 'loading…',
+  'Carregando a conversa…': 'Loading chat…',
+  'Sem mensagens ainda. Escreva abaixo.': 'No messages yet. Type below.',
+  '{0} imagem': '{0} image',
+  '{0} imagens': '{0} images',
+  '[{0} imagem]': '[{0} image]',
+  '[{0} imagens]': '[{0} images]',
+  'enviando…': 'sending…',
+  'Pensamento': 'Thinking',
+  'Interrompido pelo usuário': 'Interrupted by user',
+  'Conversa compactada': 'Chat compacted',
+  'Conversa compactada (resumo do que veio antes)': 'Chat compacted (summary of what came before)',
+  '(todas as ocorrências)': '(all occurrences)',
+  '(sem saída)': '(no output)',
+  '… mais {0} caracteres': '… {0} more characters',
+  'aguardando…': 'waiting…',
+  'Cancelar o menu': 'Cancel the menu',
+  'Ver no terminal': 'View in terminal',
+  'A sessão está esperando você no terminal (permissão, pergunta ou liberar os servidores MCP do projeto).':
+    'The session is waiting for you in the terminal (a permission, a question, or approving the project MCP servers).',
+  'Abrir o terminal': 'Open terminal',
+  'Somente leitura': 'Read-only',
+  'Somente leitura: sessão fechada.': 'Read-only: session closed.',
+  'Somente leitura: para escrever, use "Abrir conversa" no detalhe.': 'Read-only: to write, use "Open chat" in the details.',
+  'Somente leitura: esta sessão está aberta no VSCode.': 'Read-only: this session is open in VS Code.',
+  'Assumir aqui': 'Take over here',
+  'Assumindo…': 'Taking over…',
+  // acoes sobre sessoes
+  'Parar a sessão em segundo plano "{0}"?\n\nEla é encerrada (a conversa fica salva e pode ser retomada).':
+    'Stop the background session "{0}"?\n\nIt will be ended (the chat is saved and can be resumed).',
+  'Não parou: {0}': 'Could not stop: {0}',
+  'Sessão parada.': 'Session stopped.',
+  'Não foi possível assumir ({0})': 'Could not take over ({0})',
+  'Sessão retomada em segundo plano.': 'Session resumed in the background.',
+  // menu do no e dica
+  'Nova sessão aqui': 'New session here',
+  'Este projeto não tem pasta conhecida.': 'This project has no known folder.',
+  'Nova sessão com opções…': 'New session with options…',
+  'Focar neste projeto': 'Focus on this project',
+  '{0} abertas de {1} sessões': '{0} of {1} sessions open',
+  'Nenhuma sessão aberta.': 'No open sessions.',
+  // detalhe da sessao
+  'Carregando subagentes…': 'Loading subagents…',
+  'Subagentes': 'Subagents',
+  '{0} rodando': '{0} running',
+  'Nenhum subagente nesta sessão.': 'No subagents in this session.',
+  'modelo desconhecido': 'unknown model',
+  '{0} ferramentas': '{0} tools',
+  'última: {0}': 'last: {0}',
+  'Sem consultas ao advisor.': 'No advisor calls.',
+  '{0} consulta(s)': '{0} call(s)',
+  'leu {0}k tokens': 'read {0}k tokens',
+  'Custo por modelo': 'Cost by model',
+  '{0} chamadas': '{0} calls',
+  'Transcrito grande: o custo da sessão principal vem só dos últimos ~4 MB.': 'Large transcript: the main session cost only covers the last ~4 MB.',
+  'Últimas ferramentas': 'Recent tools',
+  'Nenhuma ferramenta registrada.': 'No tools recorded.',
+  'Fechar detalhe': 'Close details',
+  'Pasta': 'Folder',
+  'Início da sessão': 'Session start',
+  'Turno atual': 'Current turn',
+  'Fim do turno': 'Turn end',
+  'Custo': 'Cost',
+  'Branch': 'Branch',
+  'Pull requests': 'Pull requests',
+  'Último prompt': 'Last prompt',
+  'Última resposta': 'Last response',
+  'Abrir no VSCode': 'Open in VS Code',
+  'Abrir conversa': 'Open chat',
+  'Conversa e terminal desta sessão em segundo plano': 'Chat and terminal of this background session',
+  'Parar': 'Stop',
+  'Ver conversa': 'View chat',
+  'Lê a conversa (somente leitura)': 'Read the chat (read-only)',
+  'Retoma esta conversa em segundo plano e abre o terminal': 'Resume this chat in the background and open the terminal',
+  'Aberta numa aba do VSCode: para assumir aqui, feche a aba no VSCode antes. Duas pontas escrevendo na mesma conversa a corromperiam.':
+    'Open in a VS Code tab: close that tab before taking over here. Two clients writing to the same chat would corrupt it.',
+  '{0} (há {1})': '{0} ({1} ago)',
+  'em andamento há mais de {0} (início fora do trecho lido)': 'in progress for over {0} (start is outside the part read)',
+  '{0} (em andamento há {1})': '{0} (in progress for {1})',
+  '{0} (durou {1})': '{0} (took {1})',
+  'em andamento': 'in progress',
+  // uso do plano
+  'Sessão (5h)': 'Session (5h)',
+  'Semanal (7d)': 'Weekly (7d)',
+  'zerou': 'reset',
+  'zera em {0}': 'resets in {0}',
+  'Sem dados ainda: o uso chega pelo status line depois da primeira resposta de uma sessão.':
+    'No data yet: usage arrives through the status line after the first response of a session.',
+  'atualizado há {0}': 'updated {0} ago',
+  'abra uma sessão para atualizar': 'open a session to refresh',
+  '(dado antigo: abra uma sessão para atualizar)': '(stale data: open a session to refresh)',
+  // mensagens do servidor (servidor.py, painel.py, anexos.py): sem acento, como o servidor manda
+  'sessao nao encontrada': 'session not found',
+  'proibido': 'forbidden',
+  'id invalido': 'invalid id',
+  'offset invalido': 'invalid offset',
+  'corpo invalido': 'invalid request body',
+  'posicao ou no invalido': 'invalid position or node',
+  'no desconhecido ou sem pasta': 'unknown node or node without a folder',
+  'modelo ou esforco fora da lista permitida': 'model or effort is not in the allowed list',
+  'feche a aba no VSCode antes de assumir aqui': 'close the VS Code tab before taking over here',
+  'ja esta rodando em segundo plano: abra o terminal': 'already running in the background: open the terminal',
+  'sessao background nao encontrada': 'background session not found',
+  'Content-Type deve ser image/png, image/jpeg, image/webp ou image/gif': 'Content-Type must be image/png, image/jpeg, image/webp or image/gif',
+  'arquivo maior que 15 MB': 'file larger than 15 MB',
+  'anexo desconhecido, texto vazio ou grande demais: nada foi enviado': 'unknown attachment, or text empty or too long: nothing was sent',
+  'so sessoes background (claude --bg) abrem terminal aqui': 'only background sessions (claude --bg) can open a terminal here',
+  'prompt vazio ou longo demais': 'prompt is empty or too long',
+  'pasta inexistente ou fora da home': 'folder does not exist or is outside home',
+  'tipo nao permitido (use png, jpeg, webp ou gif)': 'type not allowed (use png, jpeg, webp or gif)',
+  'arquivo vazio ou maior que 15 MB': 'file is empty or larger than 15 MB',
+};
+// mensagens do servidor com parte variavel
+const EN_SERVIDOR = [
+  [/^sessao criada, mas o id nao veio na saida: /, 'session created, but its id was not in the output: '],
+  [/^sessao retomada, mas o id nao veio na saida: /, 'session resumed, but its id was not in the output: '],
+  [/^limite de (\d+) terminais$/, 'limit of $1 terminals'],
+  [/^nao foi possivel abrir o terminal: /, 'could not open the terminal: '],
+  [/^claude saiu com codigo (-?\d+)$/, 'claude exited with code $1'],
+  [/^systemctl saiu com codigo (-?\d+)$/, 'systemctl exited with code $1'],
+  [/^o conteudo nao e /, 'content is not '],
+];
+// </i18n>
+function tr(pt, ...args) {
+  let s = LANG === 'en' && Object.prototype.hasOwnProperty.call(EN, pt) ? EN[pt] : pt;
+  if (args.length) s = s.replace(/\{(\d+)\}/g, (m, i) => (args[i] != null ? String(args[i]) : m));
+  return s;
+}
+function trServidor(msg) {  // texto de erro vindo do servidor (portugues sem acento)
+  if (LANG !== 'en' || typeof msg !== 'string') return msg;
+  if (Object.prototype.hasOwnProperty.call(EN, msg)) return EN[msg];
+  for (const [re, en] of EN_SERVIDOR) if (re.test(msg)) return msg.replace(re, en);
+  return msg;
+}
+// HTML estatico: troca nos de texto e title/placeholder/aria-label por correspondencia exata no dicionario
+(function traduzirEstatico() {
+  document.documentElement.lang = LANG === 'en' ? 'en' : 'pt-BR';
+  if (LANG !== 'en') return;
+  document.title = tr(document.title);
+  const tem = k => Object.prototype.hasOwnProperty.call(EN, k);
+  const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = w.nextNode(); n; n = w.nextNode()) {
+    if (n.parentElement && n.parentElement.closest('script, style')) continue;
+    const k = n.nodeValue.trim();
+    if (k && tem(k)) n.nodeValue = n.nodeValue.replace(k, () => EN[k]);
+  }
+  for (const e of document.body.querySelectorAll('[title], [placeholder], [aria-label]')) {
+    for (const a of ['title', 'placeholder', 'aria-label']) { const v = e.getAttribute(a); if (v && tem(v)) e.setAttribute(a, EN[v]); }
+  }
+})();
+
 const JANELA_DIAS = 14;
 const COR = {
   atencao: [255, 59, 79], trabalhando: [255, 176, 32], suaVez: [61, 220, 132], fechada: [123, 132, 148],
@@ -424,7 +730,10 @@ function corDaRegiao(id) {  // projeto avulso: matiz estavel derivado do nome
   const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
   return (COR_REGIAO[id] = [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255]);
 }
-const NOME_COLUNA = { atencao: 'precisa de você', trabalhando: 'trabalhando', suaVez: 'sua vez', fechada: 'fechada' };
+const NOME_COLUNA = { atencao: tr('precisa de você'), trabalhando: tr('trabalhando'), suaVez: tr('sua vez'), fechada: tr('fechada') };
+// nome de no/subprojeto so na exibicao: o no raiz "geral" vira "general" em ingles (o id continua "geral")
+const nomeExibido = nome => (LANG === 'en' && nome === 'geral' ? 'general' : nome);
+const projetoDe = s => [s.projeto, s.subprojeto].filter(Boolean).map(nomeExibido).join(' / ');
 const ORDEM_COLUNA = { atencao: 0, trabalhando: 1, suaVez: 2, fechada: 3 };
 
 const reduzMovimento = matchMedia('(prefers-reduced-motion: reduce)');
@@ -489,9 +798,9 @@ function lerFocoDaUrl() {
 }
 function valorFoco(f) { return f.no || f.regiao || ''; }
 function tituloFoco() {
-  if (!foco.regiao) return 'Mapa';
-  const nome = foco.no ? foco.no.slice(foco.no.indexOf('/') + 1) : '';
-  return 'Mapa · ' + nomeDaRegiao(foco.regiao) + (nome ? ' / ' + nome : '');
+  if (!foco.regiao) return tr('Mapa');
+  const nome = foco.no ? nomeExibido(foco.no.slice(foco.no.indexOf('/') + 1)) : '';
+  return tr('Mapa') + ' · ' + nomeDaRegiao(foco.regiao) + (nome ? ' / ' + nome : '');
 }
 
 const cam = { x: 0, y: 0, k: 0.3 };
@@ -531,7 +840,7 @@ function fmtDur(seg) {
 }
 function fmtData(t) {
   if (!t) return '—';
-  return new Date(t * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return new Date(t * 1000).toLocaleString(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 function tituloCurto(s, max) {
   const t = (s.titulo || s.nome || s.primeiroPrompt || s.id.slice(0, 8)).replace(/\s+/g, ' ');
@@ -542,18 +851,18 @@ function tempoDe(s, t) {
     case 'atencao': {
       let ts = s.atencao && s.atencao.ts;
       if (ts > 1e12) ts /= 1000;
-      return ts ? 'aguardando há ' + fmtDur(t - ts) : 'aguardando você';
+      return ts ? tr('aguardando há {0}', fmtDur(t - ts)) : tr('aguardando você');
     }
     case 'trabalhando':
       // nunca usa inicioSessao: sem prompt achado, so o inicio aproximado (janela lida) e "mais de X"
-      if (s.inicioTurno) return 'rodando há ' + fmtDur(t - s.inicioTurno);
-      return s.inicioTurnoAproximado ? 'rodando há mais de ' + fmtDur(t - s.inicioTurnoAproximado) : 'rodando';
+      if (s.inicioTurno) return tr('rodando há {0}', fmtDur(t - s.inicioTurno));
+      return s.inicioTurnoAproximado ? tr('rodando há mais de {0}', fmtDur(t - s.inicioTurnoAproximado)) : tr('rodando');
     case 'suaVez': {
       const fim = s.fimTurno || s.ultimaAtividade;
-      return fim ? 'terminou há ' + fmtDur(t - fim) : 'terminou';
+      return fim ? tr('terminou há {0}', fmtDur(t - fim)) : tr('terminou');
     }
     default:
-      return s.ultimaAtividade ? 'fechada há ' + fmtDur(t - s.ultimaAtividade) : 'fechada';
+      return s.ultimaAtividade ? tr('fechada há {0}', fmtDur(t - s.ultimaAtividade)) : tr('fechada');
   }
 }
 
@@ -699,7 +1008,7 @@ function aplicarEstado(est) {
   const q = busca.trim().toLowerCase();
   for (const s of sessoes.values()) {
     s.alvoCor = COR[s.coluna] || COR.fechada;
-    s.hay = [s.titulo, s.nome, s.projeto, s.subprojeto, s.primeiroPrompt, s.ultimoPrompt, s.no].join(' ').toLowerCase();
+    s.hay = [s.titulo, s.nome, s.projeto, s.subprojeto, nomeExibido(s.subprojeto), s.primeiroPrompt, s.ultimoPrompt, s.no].join(' ').toLowerCase();
   }
   ordemDesenho = [...sessoes.values()].sort((a, b) => ORDEM_COLUNA[b.coluna] - ORDEM_COLUNA[a.coluna]);
   aplicarBusca(q);
@@ -715,7 +1024,7 @@ function aplicarEstado(est) {
 function aplicarBusca(q) {
   for (const s of sessoes.values()) s.casa = !q || s.hay.includes(q);
   for (const n of nos.values()) {
-    n.casa = !q || n.nome.toLowerCase().includes(q) || [...sessoes.values()].some(s => s.no === n.id && s.casa);
+    n.casa = !q || n.nome.toLowerCase().includes(q) || nomeExibido(n.nome).toLowerCase().includes(q) || [...sessoes.values()].some(s => s.no === n.id && s.casa);
   }
 }
 
@@ -910,8 +1219,8 @@ function desenharEtiquetasNo(ks) {
     const contTxt = n.abertas + '/' + n.total;
     let achou = null;
     for (const max of [99, 16, 10]) {
-      const nome = encurtar(n.nome, max);
-      if (max !== 99 && nome === n.nome) continue;
+      const nome = encurtar(nomeExibido(n.nome), max);
+      if (max !== 99 && nome === nomeExibido(n.nome)) continue;
       const larg = Math.max(ctx.measureText(nome).width, 28);
       for (const yy of [yAbaixo, yAcima]) {  // embaixo; se colidir, em cima do no
         const r = [n.sx - larg / 2 - 3, yy - 1, n.sx + larg / 2 + 3, yy + fonte * 2 + 4];
@@ -1271,7 +1580,7 @@ function atualizarSeletores() {
   if (proj.dataset.ass !== ass) {
     proj.dataset.ass = ass;
     proj.textContent = '';
-    const o0 = el('option', null, 'Projetos (' + lista.length + ')'); o0.value = '';
+    const o0 = el('option', null, tr('Projetos ({0})', lista.length)); o0.value = '';
     proj.append(o0);
     for (const r of lista) { const o = el('option', null, r.id + '  (' + r.abertas + '/' + r.total + ')'); o.value = r.id; proj.append(o); }
     proj.value = por.has(foco.regiao) ? foco.regiao : '';
@@ -1287,9 +1596,9 @@ function atualizarSeletores() {
   if (sel.dataset.ass === assinatura) return;
   sel.dataset.ass = assinatura;
   sel.textContent = '';
-  const todos = el('option', null, 'todos os projetos'); todos.value = '';
+  const todos = el('option', null, tr('todos os projetos')); todos.value = '';
   sel.append(todos);
-  for (const n of nosR) { const o = el('option', null, n.nome + ' (' + n.abertas + '/' + n.total + ')'); o.value = n.id; sel.append(o); }
+  for (const n of nosR) { const o = el('option', null, nomeExibido(n.nome) + ' (' + n.abertas + '/' + n.total + ')'); o.value = n.id; sel.append(o); }
   sel.value = foco.no || '';
 }
 document.getElementById('sel-proj').addEventListener('change', e => definirFoco(e.target.value || null));
@@ -1313,7 +1622,7 @@ async function postar(rota, corpo) {
     let dados = {};
     try { dados = await r.json(); } catch (_) { /* corpo vazio */ }
     return { ok: r.ok, status: r.status, dados };
-  } catch (e) { return { ok: false, status: 0, dados: { erro: 'sem conexão com o servidor' } }; }
+  } catch (e) { return { ok: false, status: 0, dados: { erro: tr('sem conexão com o servidor') } }; }
 }
 
 // ---------- doca de terminais (xterm.js servido localmente) ----------
@@ -1405,7 +1714,7 @@ function reconstruirDivisores() {
   colunas.forEach((c, i) => {
     if (i === colunas.length - 1) return;
     const d = el('div', 'divisor');
-    d.setAttribute('role', 'separator'); d.setAttribute('aria-orientation', 'vertical'); d.title = 'Arraste para ajustar a largura';
+    d.setAttribute('role', 'separator'); d.setAttribute('aria-orientation', 'vertical'); d.title = tr('Arraste para ajustar a largura');
     ligarDivisor(d, c, colunas[i + 1]);
     c.el.after(d);
   });
@@ -1459,7 +1768,7 @@ function criarColuna(ref, lado) {
   c.barra = el('div', 'col-barra');
   c.abasEl = el('div', 'col-abas'); c.abasEl.setAttribute('role', 'tablist');
   const dividir = el('button', 'bt col-dividir'); dividir.innerHTML = ICONE_DIVIDIR;
-  dividir.title = 'Dividir: mover esta aba para uma nova coluna à direita (Ctrl+\\)'; dividir.setAttribute('aria-label', 'Dividir em nova coluna');
+  dividir.title = tr('Dividir: mover esta aba para uma nova coluna à direita (Ctrl+\\)'); dividir.setAttribute('aria-label', tr('Dividir em nova coluna'));
   dividir.addEventListener('click', () => dividirAba(terminais.get(c.ativa)));
   c.barra.append(c.abasEl, dividir);
   c.corpo = el('div', 'col-corpo');
@@ -1507,12 +1816,12 @@ function moverAba(t, destino, indice) {
 function moverParaNovaColuna(t, ref, lado) {
   const origem = t.col;
   if (origem === ref && origem.jobs.length === 1) return;  // coluna so com esta aba: nada muda
-  if (colunas.length >= MAX_COLUNAS && origem.jobs.length > 1) { aviso('No máximo ' + MAX_COLUNAS + ' colunas.', true); return; }
+  if (colunas.length >= MAX_COLUNAS && origem.jobs.length > 1) { aviso(tr('No máximo {0} colunas.', MAX_COLUNAS), true); return; }
   moverAba(t, criarColuna(ref, lado), 0);
 }
 function dividirAba(t) {
   if (!t) return;
-  if (t.col.jobs.length < 2) { aviso('Só há uma aba nesta coluna: abra outra sessão ou arraste uma aba para o lado.'); return; }
+  if (t.col.jobs.length < 2) { aviso(tr('Só há uma aba nesta coluna: abra outra sessão ou arraste uma aba para o lado.')); return; }
   moverParaNovaColuna(t, t.col, 'dir');
 }
 
@@ -1658,8 +1967,8 @@ function criarAba(chave, nome, somenteLeitura) {
   aba.setAttribute('role', 'tab');
   const rotulo = el('span', null, nome || chave);
   const x = el('button', 'x', '×');
-  x.title = 'Fechar a aba (só desanexa: a sessão continua rodando)';
-  x.setAttribute('aria-label', 'Fechar terminal ' + (nome || chave));
+  x.title = tr('Fechar a aba (só desanexa: a sessão continua rodando)');
+  x.setAttribute('aria-label', tr('Fechar terminal {0}', nome || chave));
   aba.append(rotulo, x);
   col.abasEl.append(aba);
   aba.draggable = true;
@@ -1670,9 +1979,9 @@ function criarAba(chave, nome, somenteLeitura) {
   criarConversa(t, conversaEl);
   if (term) {
     const seg = el('div', 'modo-seg');
-    t.botoesModo = { conversa: el('button', null, 'Conversa'), terminal: el('button', null, 'Terminal') };
-    t.botoesModo.conversa.title = 'Mensagens renderizadas: selecione e copie à vontade';
-    t.botoesModo.terminal.title = 'O terminal do Claude (Ctrl+Esc alterna)';
+    t.botoesModo = { conversa: el('button', null, tr('Conversa')), terminal: el('button', null, tr('Terminal')) };
+    t.botoesModo.conversa.title = tr('Mensagens renderizadas: selecione e copie à vontade');
+    t.botoesModo.terminal.title = tr('O terminal do Claude (Ctrl+Esc alterna)');
     for (const [m, b] of Object.entries(t.botoesModo)) { b.addEventListener('click', () => definirModo(t, m)); seg.append(b); }
     vista.append(seg);
   }
@@ -1717,16 +2026,16 @@ function conectarTerminal(t, job) {
     }
     try {  // texto = controle do servidor (erro do composer)
       const j = JSON.parse(ev.data);
-      if (j && j.tipo === 'erro') aviso(j.mensagem || 'erro no envio', true);
+      if (j && j.tipo === 'erro') aviso(trServidor(j.mensagem) || tr('erro no envio'), true);
     } catch (_) { term.write(ev.data); }
   };
   ws.onopen = () => ajustar(t);
   ws.onclose = () => {
     if (t.ws !== ws) return;  // conexao antiga (aba promovida ou reconectada)
-    term.write('\r\n\x1b[2m[desanexado: a sessão continua rodando]\x1b[0m\r\n');
+    term.write('\r\n\x1b[2m' + tr('[desanexado: a sessão continua rodando]') + '\x1b[0m\r\n');
     t.aba.classList.add('desanexada');
     t.composer.classList.add('off');
-    avisoNaConversa(t, 'Desanexado: a sessão continua rodando em segundo plano. Reabra pelo mapa.');
+    avisoNaConversa(t, tr('Desanexado: a sessão continua rodando em segundo plano. Reabra pelo mapa.'));
   };
 }
 function descarregarFila(t) {
@@ -1737,7 +2046,7 @@ function descarregarFila(t) {
 }
 
 function abrirTerminal(job, nome) {
-  if (!window.Terminal || !window.FitAddon) { aviso('Biblioteca do terminal não carregou.', true); return null; }
+  if (!window.Terminal || !window.FitAddon) { aviso(tr('Biblioteca do terminal não carregou.'), true); return null; }
   if (terminais.has(job)) { mostrarDoca(true); ativarAba(job); return terminais.get(job); }
   const t = criarAba(job, nome);
   conectarTerminal(t, job);
@@ -1749,11 +2058,11 @@ function abrirTerminal(job, nome) {
 
 // aba que aparece na hora ("iniciando...") enquanto a sessao ainda esta sendo criada
 function abrirTerminalPendente() {
-  if (!window.Terminal || !window.FitAddon) { aviso('Biblioteca do terminal não carregou.', true); return null; }
-  const t = criarAba('pendente:' + (++seqPendente), 'iniciando…');
+  if (!window.Terminal || !window.FitAddon) { aviso(tr('Biblioteca do terminal não carregou.'), true); return null; }
+  const t = criarAba('pendente:' + (++seqPendente), tr('iniciando…'));
   t.pendente = true;
-  t.term.write('\x1b[2miniciando a sessão…\x1b[0m\r\n');
-  t.conv.vazio.textContent = 'Iniciando a sessão… você já pode escrever: a mensagem vai assim que ela conectar.';
+  t.term.write('\x1b[2m' + tr('iniciando a sessão…') + '\x1b[0m\r\n');
+  t.conv.vazio.textContent = tr('Iniciando a sessão… você já pode escrever: a mensagem vai assim que ela conectar.');
   criarComposer(t);
   t.composer.querySelector('textarea').focus();
   return t;
@@ -1773,7 +2082,7 @@ function promoverTerminal(t, job, nome) {
   conectarTerminal(t, job);
   atualizarModeloDoTerminal(t);
   t.composer.classList.remove('off');
-  t.conv.vazio.textContent = 'Sessão pronta. Escreva abaixo.';
+  t.conv.vazio.textContent = tr('Sessão pronta. Escreva abaixo.');
   definirModo(t, 'conversa');
   puxarConversa(t);
 }
@@ -1792,19 +2101,19 @@ async function tentarCriar(t, noId, { modelo, esforco, nome }) {
   const no = todosNos.find(n => n.id === noId);
   t.pendente = true;
   const r = await postar('/api/nova-sessao', nome ? { no: noId, modelo, esforco, nome } : { no: noId, modelo, esforco });
-  if (![...terminais.values()].includes(t)) { aviso(r.ok ? 'Sessão criada, mas a aba foi fechada (ela segue rodando).' : (r.dados.erro || 'Não foi possível criar a sessão.'), !r.ok); return; }
+  if (![...terminais.values()].includes(t)) { aviso(r.ok ? tr('Sessão criada, mas a aba foi fechada (ela segue rodando).') : (trServidor(r.dados.erro) || tr('Não foi possível criar a sessão.')), !r.ok); return; }
   if (r.ok) {
     removerAvisoConfianca(t);
     guardarEsforco(r.dados.jobId, esforco);
-    promoverTerminal(t, r.dados.jobId, no ? no.nome : r.dados.jobId);
+    promoverTerminal(t, r.dados.jobId, no ? nomeExibido(no.nome) : r.dados.jobId);
     return;
   }
   if (r.dados.codigo === 'nao_confiavel') { mostrarConfianca(t, noId, { modelo, esforco, nome }); return; }
-  t.term.write('\r\n\x1b[31m' + (r.dados.erro || 'não foi possível criar a sessão') + '\x1b[0m\r\n');
+  t.term.write('\r\n\x1b[31m' + (trServidor(r.dados.erro) || tr('não foi possível criar a sessão')) + '\x1b[0m\r\n');
   t.conv.vazio.textContent = '';
-  avisoNaConversa(t, r.dados.erro || 'Não foi possível criar a sessão.', 'erro');
-  t.aba.classList.add('desanexada'); t.composer.classList.add('off'); t.rotulo.textContent = 'falhou';
-  aviso(r.dados.erro || 'Não foi possível criar a sessão.', true);
+  avisoNaConversa(t, trServidor(r.dados.erro) || tr('Não foi possível criar a sessão.'), 'erro');
+  t.aba.classList.add('desanexada'); t.composer.classList.add('off'); t.rotulo.textContent = tr('falhou');
+  aviso(trServidor(r.dados.erro) || tr('Não foi possível criar a sessão.'), true);
 }
 
 // ---- confianca da pasta (dialogo oficial do Claude numa PTY, aceito pelo usuario no xterm) ----
@@ -1818,16 +2127,16 @@ function mostrarAvisoConfianca(t, texto, botoes) {
   t.avisoConfianca = caixa;
 }
 function mostrarConfianca(t, noId, params) {
-  t.rotulo.textContent = 'pasta não confiável';
-  t.term.write('\r\n\x1b[33mEsta pasta ainda não é confiável para o Claude.\x1b[0m\r\n');
-  mostrarAvisoConfianca(t, 'Esta pasta ainda não é confiável para o Claude.', [['Confiar nesta pasta', () => iniciarConfianca(t, noId, params)]]);
+  t.rotulo.textContent = tr('pasta não confiável');
+  t.term.write('\r\n\x1b[33m' + tr('Esta pasta ainda não é confiável para o Claude.') + '\x1b[0m\r\n');
+  mostrarAvisoConfianca(t, tr('Esta pasta ainda não é confiável para o Claude.'), [[tr('Confiar nesta pasta'), () => iniciarConfianca(t, noId, params)]]);
 }
 function iniciarConfianca(t, noId, params) {
   removerAvisoConfianca(t);
   definirModo(t, 'terminal');  // o dialogo oficial e respondido no xterm
   t.term.reset();
-  t.term.write('\x1b[2mabrindo o diálogo oficial de confiança… responda aqui com o teclado\x1b[0m\r\n');
-  t.rotulo.textContent = 'confiar na pasta?';
+  t.term.write('\x1b[2m' + tr('abrindo o diálogo oficial de confiança… responda aqui com o teclado') + '\x1b[0m\r\n');
+  t.rotulo.textContent = tr('confiar na pasta?');
   const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/confiar?no=' + encodeURIComponent(noId)
     + '&token=' + encodeURIComponent(TOKEN) + '&cols=' + t.term.cols + '&linhas=' + t.term.rows;
   const ws = new WebSocket(url);
@@ -1844,20 +2153,20 @@ function iniciarConfianca(t, noId, params) {
     if (j.estado === 'aceita') {
       t.ws = null;
       t.term.reset();
-      t.term.write('\x1b[2mconfiança aceita; criando a sessão…\x1b[0m\r\n');
-      t.rotulo.textContent = 'iniciando…';
+      t.term.write('\x1b[2m' + tr('confiança aceita; criando a sessão…') + '\x1b[0m\r\n');
+      t.rotulo.textContent = tr('iniciando…');
       tentarCriar(t, noId, params);  // refaz o --bg com o mesmo modelo/esforco; a fila do composer segue preservada
     } else if (j.estado === 'recusada') {
       t.ws = null;
-      t.rotulo.textContent = 'pasta não confiada';
+      t.rotulo.textContent = tr('pasta não confiada');
       t.composer.classList.add('off');
-      mostrarAvisoConfianca(t, 'Pasta não confiada.', [['Fechar aba', () => fecharAba(t.job)]]);
+      mostrarAvisoConfianca(t, tr('Pasta não confiada.'), [[tr('Fechar aba'), () => fecharAba(t.job)]]);
     }
   };
   ws.onclose = () => {
     if (desfecho || ![...terminais.values()].includes(t)) return;
     t.ws = null;
-    mostrarAvisoConfianca(t, 'A conexão do diálogo de confiança caiu.', [['Tentar de novo', () => iniciarConfianca(t, noId, params)], ['Fechar aba', () => fecharAba(t.job)]]);
+    mostrarAvisoConfianca(t, tr('A conexão do diálogo de confiança caiu.'), [[tr('Tentar de novo'), () => iniciarConfianca(t, noId, params)], [tr('Fechar aba'), () => fecharAba(t.job)]]);
   };
 }
 
@@ -1889,7 +2198,7 @@ function mostrarPopoverProjetos(ancora) {
   for (const reg of ordem) {
     popoverProj.append(el('div', 'reg', nomeDaRegiao(reg)));
     for (const n of grupos.get(reg).sort((a, b) => a.nome.localeCompare(b.nome))) {
-      const b = el('button', null, n.nome);
+      const b = el('button', null, nomeExibido(n.nome));
       b.addEventListener('click', () => { popoverProj.hidden = true; criarSessaoRapida(n.id); });
       popoverProj.append(b);
     }
@@ -1918,7 +2227,7 @@ function fecharAba(job) {
   terminais.delete(job);
   const col = t.col, i = col.jobs.indexOf(job);
   col.jobs.splice(i, 1);
-  if (t.term) aviso('Aba fechada (só desanexa): a sessão continua rodando em segundo plano.');
+  if (t.term) aviso(tr('Aba fechada (só desanexa): a sessão continua rodando em segundo plano.'));
   if (!col.jobs.length) removerColuna(col);
   else if (col.ativa === job) mostrarNaColuna(col, col.jobs[Math.min(i, col.jobs.length - 1)]);
   if (!terminais.size) { ativoJob = null; colAtiva = null; mostrarDoca(false); }
@@ -1927,7 +2236,7 @@ function fecharAba(job) {
 }
 document.getElementById('doca-max').addEventListener('click', e => {
   const max = document.body.classList.toggle('max-term');
-  e.target.textContent = max ? 'Restaurar' : 'Maximizar';
+  e.target.textContent = max ? tr('Restaurar') : tr('Maximizar');
   document.documentElement.style.setProperty('--ar', (L / A).toFixed(3));
   setTimeout(ajustarTerminais, 50);
 });
@@ -1949,21 +2258,21 @@ const MODELOS_UI = [['opus', 'Opus 5.5'], ['sonnet', 'Sonnet 5.5'], ['haiku', 'H
 const ESFORCOS_UI = ['low', 'medium', 'high', 'xhigh', 'max'];
 function rotuloModelo(id) {  // claude-opus-5-5 -> "Opus 5.5"; claude-haiku-4-5-20251001 -> "Haiku 4.5"
   const m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?/.exec(id || '');
-  if (!m) return id ? nomeCurtoModelo(id) : 'modelo';
+  if (!m) return id ? nomeCurtoModelo(id) : tr('modelo');
   return m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + (m[3] ? '.' + m[3] : '');
 }
 function guardarEsforco(job, v) { try { sessionStorage.setItem('mapa.esforco.' + job, v); } catch (_) { /* opcional */ } }
 function lerEsforco(job) { try { return sessionStorage.getItem('mapa.esforco.' + job) || ''; } catch (_) { return ''; } }
 
 async function subirImagem(arquivo) {
-  if (!/^image\/(png|jpeg|webp|gif)$/.test(arquivo.type)) { aviso('Só imagens png, jpeg, webp ou gif.', true); return null; }
-  if (arquivo.size > 15 * 1024 * 1024) { aviso('Imagem maior que 15 MB.', true); return null; }
+  if (!/^image\/(png|jpeg|webp|gif)$/.test(arquivo.type)) { aviso(tr('Só imagens png, jpeg, webp ou gif.'), true); return null; }
+  if (arquivo.size > 15 * 1024 * 1024) { aviso(tr('Imagem maior que 15 MB.'), true); return null; }
   try {
     const r = await fetch('/api/anexo', { method: 'POST', headers: { 'Content-Type': arquivo.type, 'X-Token': TOKEN }, body: arquivo });
     const j = await r.json();
-    if (!r.ok) { aviso(j.erro || 'Falha no envio da imagem (' + r.status + ')', true); return null; }
+    if (!r.ok) { aviso(trServidor(j.erro) || tr('Falha no envio da imagem ({0})', r.status), true); return null; }
     return j.id;
-  } catch (_) { aviso('Falha no envio da imagem.', true); return null; }
+  } catch (_) { aviso(tr('Falha no envio da imagem.'), true); return null; }
 }
 
 function criarComposer(t) {
@@ -1971,15 +2280,15 @@ function criarComposer(t) {
   const lista = el('div', 'anexos-c');
   const caixa = el('textarea');
   caixa.rows = 1;
-  caixa.placeholder = 'Mensagem (Enter envia · Shift+Enter quebra linha · cole ou arraste imagens)';
-  caixa.setAttribute('aria-label', 'Mensagem para a sessão');
+  caixa.placeholder = tr('Mensagem (Enter envia · Shift+Enter quebra linha · cole ou arraste imagens)');
+  caixa.setAttribute('aria-label', tr('Mensagem para a sessão'));
   const barra = el('div', 'barra-c');
   const seletor = el('input'); seletor.type = 'file'; seletor.accept = 'image/png,image/jpeg,image/webp,image/gif'; seletor.multiple = true; seletor.hidden = true;
-  const anexar = el('button', 'bt', '+ anexar imagem'); anexar.title = 'Anexar imagem (ou cole com Ctrl+V / arraste para cá)';
-  const pModelo = el('button', 'bt pilula', 'modelo ▾'); pModelo.title = 'Trocar o modelo (/model)';
-  const pEsforco = el('button', 'bt pilula', 'esforço ▾'); pEsforco.title = 'Trocar o esforço (/effort)';
-  const parar = el('button', 'bt', 'Esc'); parar.title = 'Interromper o que a sessão está fazendo (envia Esc)';
-  const enviar = el('button', 'bt enviar', '↑'); enviar.title = 'Enviar (Enter)'; enviar.setAttribute('aria-label', 'Enviar');
+  const anexar = el('button', 'bt', tr('+ anexar imagem')); anexar.title = tr('Anexar imagem (ou cole com Ctrl+V / arraste para cá)');
+  const pModelo = el('button', 'bt pilula', tr('modelo') + ' ▾'); pModelo.title = tr('Trocar o modelo (/model)');
+  const pEsforco = el('button', 'bt pilula', tr('esforço') + ' ▾'); pEsforco.title = tr('Trocar o esforço (/effort)');
+  const parar = el('button', 'bt', 'Esc'); parar.title = tr('Interromper o que a sessão está fazendo (envia Esc)');
+  const enviar = el('button', 'bt enviar', '↑'); enviar.title = tr('Enviar (Enter)'); enviar.setAttribute('aria-label', tr('Enviar'));
   barra.append(anexar, pModelo, pEsforco, el('span', 'espaco'), parar, enviar);
   c.append(lista, caixa, barra, seletor);
   t.area.append(c);
@@ -1991,15 +2300,15 @@ function criarComposer(t) {
   // sem conexao pronta (sessao iniciando, attach ainda desenhando): enfileira e envia quando conectar
   const mandar = obj => {
     if (t.ws && t.ws.readyState === 1 && t.pronto) { t.ws.send(JSON.stringify(obj)); return true; }
-    if (t.pendente || (t.ws && t.ws.readyState <= 1)) { t.fila.push(obj); aviso('Na fila: envio assim que o terminal conectar.'); return true; }
-    aviso('Terminal desconectado.', true); return false;
+    if (t.pendente || (t.ws && t.ws.readyState <= 1)) { t.fila.push(obj); aviso(tr('Na fila: envio assim que o terminal conectar.')); return true; }
+    aviso(tr('Terminal desconectado.'), true); return false;
   };
 
   function pintarAnexos() {
     lista.textContent = '';
     for (const a of anexos) {
-      const m = el('div', 'mini'); const img = el('img'); img.src = a.url; img.alt = 'imagem anexada';
-      const x = el('button', null, '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remover anexo');
+      const m = el('div', 'mini'); const img = el('img'); img.src = a.url; img.alt = tr('imagem anexada');
+      const x = el('button', null, '×'); x.type = 'button'; x.setAttribute('aria-label', tr('Remover anexo'));
       x.addEventListener('click', () => { URL.revokeObjectURL(a.url); anexos.splice(anexos.indexOf(a), 1); pintarAnexos(); atualizarEnviar(); ajustarAltura(); });
       m.append(img, x); lista.append(m);
     }
@@ -2036,7 +2345,7 @@ function criarComposer(t) {
     if (arrastando) return;
     e.preventDefault(); c.classList.remove('arrastando');
     const imagens = [...(e.dataTransfer ? e.dataTransfer.files : [])].filter(f => f.type.startsWith('image/'));
-    if (imagens.length) adicionar(imagens); else aviso('Solte uma imagem (png, jpeg, webp ou gif).', true);
+    if (imagens.length) adicionar(imagens); else aviso(tr('Solte uma imagem (png, jpeg, webp ou gif).'), true);
   });
   anexar.addEventListener('click', () => seletor.click());
   seletor.addEventListener('change', () => { adicionar([...seletor.files]); seletor.value = ''; });
@@ -2057,8 +2366,8 @@ function criarComposer(t) {
     botao.append(m);
   }
   const pintarPilulas = () => {
-    pModelo.firstChild.textContent = (t.modeloRotulo || 'modelo') + ' ▾';
-    pEsforco.firstChild.textContent = (t.esforco ? 'esforço: ' + t.esforco : 'esforço') + ' ▾';
+    pModelo.firstChild.textContent = (t.modeloRotulo || tr('modelo')) + ' ▾';
+    pEsforco.firstChild.textContent = (t.esforco ? tr('esforço: {0}', t.esforco) : tr('esforço')) + ' ▾';
   };
   t.esforco = lerEsforco(t.job);
   t.pintarPilulas = pintarPilulas;
@@ -2066,7 +2375,7 @@ function criarComposer(t) {
   pModelo.addEventListener('click', () => menuPilula(pModelo, MODELOS_UI, () => t.modeloAtual, (valor, rotulo) => {
     if (!mandar({ tipo: 'comando', nome: 'model', valor })) return;
     t.modeloAtual = valor; t.modeloRotulo = rotulo; t.escolhaEm = Date.now(); pintarPilulas();
-    aviso('/model ' + valor + ' enviado. Se o CLI pedir confirmação, responda no terminal.');
+    aviso(tr('/model {0} enviado. Se o CLI pedir confirmação, responda no terminal.', valor));
   }));
   pEsforco.addEventListener('click', () => menuPilula(pEsforco, ESFORCOS_UI.map(v => [v, v]), () => t.esforco, valor => {
     if (!mandar({ tipo: 'comando', nome: 'effort', valor })) return;
@@ -2127,13 +2436,13 @@ async function copiarTexto(texto) {
   return ok;
 }
 function botaoCopiar(obterTexto, rotulo) {
-  const b = el('button', 'bt-mini', rotulo || 'copiar');
+  const b = el('button', 'bt-mini', rotulo || tr('copiar'));
   b.type = 'button';
   b.addEventListener('click', async ev => {
     ev.stopPropagation();
     const ok = await copiarTexto(obterTexto());
-    b.textContent = ok ? 'copiado' : 'falhou';
-    setTimeout(() => { b.textContent = rotulo || 'copiar'; }, 1200);
+    b.textContent = ok ? tr('copiado') : tr('falhou');
+    setTimeout(() => { b.textContent = rotulo || tr('copiar'); }, 1200);
   });
   return b;
 }
@@ -2157,15 +2466,15 @@ function acoesDaMensagem(d, texto) {
   a.append(botaoCopiar(() => texto));
   d.append(a);
 }
-function horaDe(ts) { return ts ? new Date(ts * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''; }
+function horaDe(ts) { return ts ? new Date(ts * 1000).toLocaleString(LOCALE, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''; }
 
 function criarConversa(t, scroller) {
   const col = el('div', 'conv-col');
   const topo = el('div', 'conv-topo'); topo.hidden = true;
-  const anteriores = el('button', 'bt-mini', 'carregar mensagens anteriores');
+  const anteriores = el('button', 'bt-mini', tr('carregar mensagens anteriores'));
   anteriores.addEventListener('click', () => carregarAnteriores(t));
   topo.append(anteriores);
-  const vazio = el('div', 'conv-vazio', 'Carregando a conversa…');
+  const vazio = el('div', 'conv-vazio', tr('Carregando a conversa…'));
   const lista = el('div', 'conv-lista');
   const fim = el('div', 'conv-fim'); fim.hidden = true;
   const fimTexto = el('span');
@@ -2193,8 +2502,8 @@ function mostrarFantasma(t, texto, imagens) {
   if (c.fantasma) c.fantasma.remove();
   const d = el('div', 'msg-u fantasma');
   d.append(el('div', 'msg-u-tx', texto || ''));
-  if (imagens) d.append(el('div', 'chip', imagens + (imagens > 1 ? ' imagens' : ' imagem')));
-  d.title = 'enviando…';
+  if (imagens) d.append(el('div', 'chip', tr(imagens > 1 ? '{0} imagens' : '{0} imagem', imagens)));
+  d.title = tr('enviando…');
   c.lista.append(d);
   c.fantasma = d;
   c.vazio.hidden = true;
@@ -2210,7 +2519,7 @@ function reiniciarConversa(t, sid) {
   const c = t.conv;
   c.sid = sid; c.cursor = null; c.inicio = 0; c.ferr.clear(); c.orfaos.clear();
   c.lista.textContent = ''; c.topo.hidden = true; c.noFim = true;
-  c.vazio.hidden = false; c.vazio.textContent = 'Carregando a conversa…';
+  c.vazio.hidden = false; c.vazio.textContent = tr('Carregando a conversa…');
 }
 async function buscarConversa(sid, params) {
   const r = await fetch('/api/conversa/' + encodeURIComponent(sid) + params, { cache: 'no-store', headers: { 'X-Token': TOKEN } });
@@ -2231,7 +2540,7 @@ async function puxarConversa(t) {
     if (sid) {
       const d = await buscarConversa(sid, c.cursor == null ? '' : '?desde=' + c.cursor);
       if (c.sid === sid && !t.fechada) {
-        if (d.erro === 404) { if (!c.lista.childElementCount) c.vazio.textContent = t.pendente ? c.vazio.textContent : 'Sem mensagens ainda. Escreva abaixo.'; espera = 1500; }
+        if (d.erro === 404) { if (!c.lista.childElementCount) c.vazio.textContent = t.pendente ? c.vazio.textContent : tr('Sem mensagens ainda. Escreva abaixo.'); espera = 1500; }
         else if (d.erro) espera = 3000;
         else if (d.reiniciar) { reiniciarConversa(t, sid); espera = 50; }
         else {
@@ -2239,7 +2548,7 @@ async function puxarConversa(t) {
           c.cursor = d.cursor;
           if (primeira) { c.inicio = d.inicio; c.topo.hidden = !d.inicio; }
           adicionarItens(t, d.itens, false);
-          if (primeira && !d.itens.length) c.vazio.textContent = 'Sem mensagens ainda. Escreva abaixo.';
+          if (primeira && !d.itens.length) c.vazio.textContent = tr('Sem mensagens ainda. Escreva abaixo.');
           if (d.mais) espera = 50;
         }
       }
@@ -2255,12 +2564,12 @@ async function carregarAnteriores(t) {
   const c = t.conv;
   if (!c.sid || !c.inicio) return;
   const botao = c.topo.firstChild;
-  botao.disabled = true; botao.textContent = 'carregando…';
+  botao.disabled = true; botao.textContent = tr('carregando…');
   try {
     const d = await buscarConversa(c.sid, '?ate=' + c.inicio);
     if (!d.erro) { c.inicio = d.inicio; adicionarItens(t, d.itens, true); }
   } catch (_) { /* tenta de novo no clique */ }
-  botao.disabled = false; botao.textContent = 'carregar mensagens anteriores';
+  botao.disabled = false; botao.textContent = tr('carregar mensagens anteriores');
   c.topo.hidden = !c.inicio;
 }
 function adicionarItens(t, itens, antes) {
@@ -2290,7 +2599,7 @@ function elementoDoItem(t, it) {
     case 'usuario': {
       const d = el('div', 'msg-u');
       if (it.texto) d.append(el('div', 'msg-u-tx', it.texto));
-      if (it.imagens) d.append(el('div', 'chip', it.imagens + (it.imagens > 1 ? ' imagens' : ' imagem')));
+      if (it.imagens) d.append(el('div', 'chip', tr(it.imagens > 1 ? '{0} imagens' : '{0} imagem', it.imagens)));
       acoesDaMensagem(d, it.texto || '');
       return d;
     }
@@ -2303,14 +2612,14 @@ function elementoDoItem(t, it) {
     case 'pensou': {
       if (!it.texto || !it.texto.trim()) return null;  // pensamento redigido: so a assinatura, nada a mostrar
       const det = el('details', 'pensou');
-      det.append(el('summary', null, 'Pensamento'), el('div', 'pensou-tx', it.texto));
+      det.append(el('summary', null, tr('Pensamento')), el('div', 'pensou-tx', it.texto));
       return det;
     }
     case 'ferramenta': return elementoFerramenta(t, it);
     case 'resultado': aplicarResultado(t, it); return null;
     case 'aviso': {
       if (it.tipo === 'saida') { const p = el('pre', 'cod', it.texto); return p; }
-      const rot = it.tipo === 'interrompido' ? 'Interrompido pelo usuário' : it.texto;
+      const rot = it.tipo === 'interrompido' ? tr('Interrompido pelo usuário') : it.tipo === 'compactado' ? tr(it.texto) : it.texto;
       return el('div', 'aviso-c ' + (it.tipo || ''), rot);
     }
     default: return null;
@@ -2360,7 +2669,7 @@ function preencherFerramenta(box) {
   const corpo = box.querySelector('.ferr-corpo');
   corpo.textContent = '';
   if (it.nome === 'Bash') corpo.append(linhaFerramenta('IN', e.command || ''));
-  else if (it.nome === 'Edit') corpo.append(linhaFerramenta('IN', (e.file_path || '') + (e.replace_all === 'true' ? '  (todas as ocorrências)' : '')), linhaFerramenta('', diffSimples(e.old_string, e.new_string)));
+  else if (it.nome === 'Edit') corpo.append(linhaFerramenta('IN', (e.file_path || '') + (e.replace_all === 'true' ? '  ' + tr('(todas as ocorrências)') : '')), linhaFerramenta('', diffSimples(e.old_string, e.new_string)));
   else if (it.nome === 'Write') corpo.append(linhaFerramenta('IN', e.file_path || ''), linhaFerramenta('', e.content || ''));
   else {
     const chaves = Object.keys(e);
@@ -2368,11 +2677,11 @@ function preencherFerramenta(box) {
   }
   const ocultarSaida = res && !res.erro && (it.nome === 'Edit' || it.nome === 'Write');
   if (res && !ocultarSaida) {
-    let texto = res.texto || (res.imagens ? '' : '(sem saída)');
-    if (res.imagens) texto += (texto ? '\n' : '') + '[' + res.imagens + (res.imagens > 1 ? ' imagens]' : ' imagem]');
-    if (res.cortado) texto += '\n… mais ' + res.cortado.toLocaleString('pt-BR') + ' caracteres';
+    let texto = res.texto || (res.imagens ? '' : tr('(sem saída)'));
+    if (res.imagens) texto += (texto ? '\n' : '') + tr(res.imagens > 1 ? '[{0} imagens]' : '[{0} imagem]', res.imagens);
+    if (res.cortado) texto += '\n' + tr('… mais {0} caracteres', res.cortado.toLocaleString(LOCALE));
     corpo.append(linhaFerramenta('OUT', texto, res.erro));
-  } else if (!res) corpo.append(linhaFerramenta('OUT', 'aguardando…'));
+  } else if (!res) corpo.append(linhaFerramenta('OUT', tr('aguardando…')));
 }
 
 // spinner do turno: a linha "… (esc to interrupt)" da tela do CLI, ou o tempo desde o inicio do turno
@@ -2398,7 +2707,7 @@ function atualizarStatusConversa(t) {
   t.conv.fim.hidden = !mostrar;
   if (mostrar) {
     const desde = s && (s.inicioTurno || s.inicioTurnoAproximado);
-    t.conv.fimTexto.textContent = t.linhaSpinner || ('Trabalhando' + (desde ? ' · ' + fmtDur(agora() - desde) : '') + '…');
+    t.conv.fimTexto.textContent = t.linhaSpinner || (tr('Trabalhando') + (desde ? ' · ' + fmtDur(agora() - desde) : '') + '…');
     if (!estava) rolarSeNoFim(t);
   }
   atualizarPergunta(t, s);
@@ -2460,15 +2769,15 @@ function atualizarPergunta(t, s) {
       b.addEventListener('click', () => escolherOpcao(t, i - atual));
       ops.append(b);
     }
-    const esc = el('button', 'bt', 'Esc'); esc.title = 'Cancelar o menu';
+    const esc = el('button', 'bt', 'Esc'); esc.title = tr('Cancelar o menu');
     esc.addEventListener('click', () => enviarTecla(t, '\x1b'));
-    const ver = el('button', 'bt', 'Ver no terminal');
+    const ver = el('button', 'bt', tr('Ver no terminal'));
     ver.addEventListener('click', () => definirModo(t, 'terminal'));
     ops.append(esc, ver);
     p.append(ops);
   } else {
-    p.append(el('pre', null, 'A sessão está esperando você no terminal (permissão, pergunta ou liberar os servidores MCP do projeto).'));
-    const ver = el('button', 'bt', 'Abrir o terminal');
+    p.append(el('pre', null, tr('A sessão está esperando você no terminal (permissão, pergunta ou liberar os servidores MCP do projeto).')));
+    const ver = el('button', 'bt', tr('Abrir o terminal'));
     ver.addEventListener('click', () => definirModo(t, 'terminal'));
     p.append(ver);
   }
@@ -2476,7 +2785,7 @@ function atualizarPergunta(t, s) {
 }
 function enviarTecla(t, dados) {
   if (t.ws && t.ws.readyState === 1) { t.ws.send(dados); return true; }
-  aviso('Terminal desconectado.', true); return false;
+  aviso(tr('Terminal desconectado.'), true); return false;
 }
 // anda com as setas ate a opcao e confirma com Enter: funciona em qualquer menu do CLI
 function escolherOpcao(t, delta) {
@@ -2505,12 +2814,12 @@ function verConversa(s) {
   if (terminais.has(chave)) { mostrarDoca(true); ativarAba(chave); return; }
   const t = criarAba(chave, tituloCurto(s, 24), true);
   t.sidFixo = s.id;
-  t.aba.title = 'Somente leitura';
+  t.aba.title = tr('Somente leitura');
   const bg = s.tipo === 'bg' || s.tipo === 'background';
-  const nota = el('div', 'nota-leitura', !s.aberta ? 'Somente leitura: sessão fechada.'
-    : bg ? 'Somente leitura: para escrever, use "Abrir conversa" no detalhe.' : 'Somente leitura: esta sessão está aberta no VSCode.');
+  const nota = el('div', 'nota-leitura', !s.aberta ? tr('Somente leitura: sessão fechada.')
+    : bg ? tr('Somente leitura: para escrever, use "Abrir conversa" no detalhe.') : tr('Somente leitura: esta sessão está aberta no VSCode.'));
   if (!s.aberta) {
-    const b = el('button', 'bt', 'Assumir aqui');
+    const b = el('button', 'bt', tr('Assumir aqui'));
     b.addEventListener('click', async () => { if (await assumirSessao(s, b)) fecharAba(chave); });
     nota.append(b);
   }
@@ -2521,18 +2830,18 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) for 
 
 // ---------- acoes sobre sessoes ----------
 async function pararSessao(s) {
-  if (!confirm('Parar a sessão em segundo plano "' + tituloCurto(s, 50) + '"?\n\nEla é encerrada (a conversa fica salva e pode ser retomada).')) return;
+  if (!confirm(tr('Parar a sessão em segundo plano "{0}"?\n\nEla é encerrada (a conversa fica salva e pode ser retomada).', tituloCurto(s, 50)))) return;
   const r = await postar('/api/parar', { id: s.jobId });
-  if (!r.ok) { aviso('Não parou: ' + (r.dados.erro || r.status), true); return; }
+  if (!r.ok) { aviso(tr('Não parou: {0}', trServidor(r.dados.erro) || r.status), true); return; }
   if (terminais.has(s.jobId)) fecharAba(s.jobId);
-  aviso('Sessão parada.');
+  aviso(tr('Sessão parada.'));
 }
 async function assumirSessao(s, botao) {
-  botao.disabled = true; botao.textContent = 'Assumindo…';
+  botao.disabled = true; botao.textContent = tr('Assumindo…');
   const r = await postar('/api/assumir', { id: s.id });
-  botao.disabled = false; botao.textContent = 'Assumir aqui';
-  if (!r.ok) { aviso(r.dados.erro || 'Não foi possível assumir (' + r.status + ')', true); return false; }
-  aviso('Sessão retomada em segundo plano.');
+  botao.disabled = false; botao.textContent = tr('Assumir aqui');
+  if (!r.ok) { aviso(trServidor(r.dados.erro) || tr('Não foi possível assumir ({0})', r.status), true); return false; }
+  aviso(tr('Sessão retomada em segundo plano.'));
   abrirTerminal(r.dados.jobId, tituloCurto(s, 24));
   return true;
 }
@@ -2558,8 +2867,8 @@ function abrirDialogoNova(noId) {
   sel.textContent = '';
   // so nos com pasta conhecida: o servidor resolve a pasta a partir do no e recusa o resto
   const lista = todosNos.filter(n => n.caminho).sort((a, b) => a.regiao.localeCompare(b.regiao) || a.nome.localeCompare(b.nome));
-  if (!lista.length) { aviso('Nenhum projeto com pasta conhecida.', true); return; }
-  for (const n of lista) { const o = el('option', null, nomeDaRegiao(n.regiao) + ' / ' + n.nome); o.value = n.id; sel.append(o); }
+  if (!lista.length) { aviso(tr('Nenhum projeto com pasta conhecida.'), true); return; }
+  for (const n of lista) { const o = el('option', null, nomeDaRegiao(n.regiao) + ' / ' + nomeExibido(n.nome)); o.value = n.id; sel.append(o); }
   sel.value = noInicialDoDialogo(lista, noId);
   document.getElementById('nv-prompt').value = '';
   document.getElementById('nv-nome').value = '';
@@ -2571,15 +2880,15 @@ function abrirDialogoNova(noId) {
 document.getElementById('nv-cancelar').addEventListener('click', () => dlgNova.close());
 document.getElementById('form-nova').addEventListener('submit', async e => {
   e.preventDefault();
-  if (!document.getElementById('nv-no').value) { aviso('Escolha o projeto da sessão.', true); return; }
+  if (!document.getElementById('nv-no').value) { aviso(tr('Escolha o projeto da sessão.'), true); return; }
   const botao = document.getElementById('nv-criar');
-  botao.disabled = true; botao.textContent = 'Criando…';
+  botao.disabled = true; botao.textContent = tr('Criando…');
   const nome = document.getElementById('nv-nome').value.trim();
   const modelo = document.getElementById('nv-modelo').value, esforco = document.getElementById('nv-esforco').value;
   const r = await postar('/api/nova-sessao', { no: document.getElementById('nv-no').value, prompt: document.getElementById('nv-prompt').value, nome, modelo, esforco });
-  botao.disabled = false; botao.textContent = 'Criar e abrir terminal';
+  botao.disabled = false; botao.textContent = tr('Criar e abrir terminal');
   if (!r.ok) {
-    aviso(r.dados.codigo === 'nao_confiavel' ? 'Esta pasta ainda não é confiável para o Claude: use o botão "+ sessão" (clique direto) nela para confiar.' : (r.dados.erro || 'Não foi possível criar (' + r.status + ')'), true);
+    aviso(r.dados.codigo === 'nao_confiavel' ? tr('Esta pasta ainda não é confiável para o Claude: use o botão "+ sessão" (clique direto) nela para confiar.') : (trServidor(r.dados.erro) || tr('Não foi possível criar ({0})', r.status)), true);
     return;
   }
   dlgNova.close();
@@ -2596,11 +2905,11 @@ canvas.addEventListener('contextmenu', e => {
   menuNo.hidden = true;
   if (!n) return;
   menuNo.textContent = '';
-  const nova = el('button', null, 'Nova sessão aqui');
-  nova.addEventListener('click', () => { menuNo.hidden = true; if (n.caminho) criarSessaoRapida(n.id); else aviso('Este projeto não tem pasta conhecida.', true); });
-  const comOpcoes = el('button', null, 'Nova sessão com opções…');
+  const nova = el('button', null, tr('Nova sessão aqui'));
+  nova.addEventListener('click', () => { menuNo.hidden = true; if (n.caminho) criarSessaoRapida(n.id); else aviso(tr('Este projeto não tem pasta conhecida.'), true); });
+  const comOpcoes = el('button', null, tr('Nova sessão com opções…'));
   comOpcoes.addEventListener('click', () => { menuNo.hidden = true; abrirDialogoNova(n.id); });
-  const focar = el('button', null, 'Focar neste projeto');
+  const focar = el('button', null, tr('Focar neste projeto'));
   focar.addEventListener('click', () => { menuNo.hidden = true; definirFoco(n.regiao, n.id); });
   menuNo.append(nova, comOpcoes, focar);
   menuNo.style.left = Math.min(e.clientX, L - 210) + 'px';
@@ -2616,11 +2925,11 @@ function mostrarDica(e, s, n) {
   dica.textContent = '';
   if (s) {
     dica.append(el('b', null, tituloCurto(s, 60)));
-    dica.append(el('small', null, [s.projeto, s.subprojeto].filter(Boolean).join(' / ') + ' · ' + NOME_COLUNA[s.coluna]));
+    dica.append(el('small', null, projetoDe(s) + ' · ' + NOME_COLUNA[s.coluna]));
     dica.append(el('small', null, tempoDe(s, agora())));
   } else {
-    dica.append(el('b', null, n.nome));
-    dica.append(el('small', null, n.abertas + ' abertas de ' + n.total + ' sessões'));
+    dica.append(el('b', null, nomeExibido(n.nome)));
+    dica.append(el('small', null, tr('{0} abertas de {1} sessões', n.abertas, n.total)));
   }
   dica.style.display = 'block';
   const w = dica.offsetWidth, h = dica.offsetHeight;
@@ -2651,7 +2960,7 @@ function atualizarLista(forcar) {
   const cont = document.getElementById('itens');
   cont.textContent = '';
   refsTempo = [];
-  if (!abertas.length) { cont.append(el('div', 'vazio', 'Nenhuma sessão aberta.')); return; }
+  if (!abertas.length) { cont.append(el('div', 'vazio', tr('Nenhuma sessão aberta.'))); return; }
   let grupoAtual = null;
   const contagens = {};
   for (const s of abertas) contagens[s.coluna] = (contagens[s.coluna] || 0) + 1;
@@ -2660,7 +2969,7 @@ function atualizarLista(forcar) {
     const b = el('button', 'item' + (s.id === selecionada ? ' sel' : ''));
     const ponto = el('span', 'pt'); ponto.style.background = rgba(COR[s.coluna], 1); ponto.style.boxShadow = '0 0 8px ' + rgba(COR[s.coluna], 0.8);
     const meio = el('span', 'tt', tituloCurto(s, 44));
-    meio.append(el('span', 'pj', [s.projeto, s.subprojeto].filter(Boolean).join(' / ')));
+    meio.append(el('span', 'pj', projetoDe(s)));
     const tempo = el('span', 'tp', tempoDe(s, agora()));
     b.append(ponto, meio, tempo);
     b.addEventListener('click', () => { selecionar(s.id); centralizar(s); abrirConversaDaSessao(s); });
@@ -2712,37 +3021,37 @@ async function buscarExtra() {
 }
 setInterval(() => { if (selecionada && !document.hidden) buscarExtra(); }, 3000);
 
-const dolar = v => 'US$ ' + (v < 0.01 && v > 0 ? '<0,01' : v.toFixed(2).replace('.', ','));
-const hora = t => t ? new Date(t * 1000).toLocaleTimeString('pt-BR') : '';
+const dolar = v => (LANG === 'en' ? (v < 0.01 && v > 0 ? '<$0.01' : '$' + v.toFixed(2)) : 'US$ ' + (v < 0.01 && v > 0 ? '<0,01' : v.toFixed(2).replace('.', ',')));
+const hora = t => t ? new Date(t * 1000).toLocaleTimeString(LOCALE) : '';
 function textoTempoSub(x, t) {
-  if (x.status === 'rodando') return 'rodando há ' + fmtDur(t - (x.inicio || t));
+  if (x.status === 'rodando') return tr('rodando há {0}', fmtDur(t - (x.inicio || t)));
   const fim = x.fim || x.atualizadoEm;
-  if (x.status === 'concluido') return 'durou ' + fmtDur(x.duracao || 0) + ' · terminou há ' + fmtDur(t - fim);
-  return 'parado há ' + fmtDur(t - x.atualizadoEm);
+  if (x.status === 'concluido') return tr('durou {0} · terminou há {1}', fmtDur(x.duracao || 0), fmtDur(t - fim));
+  return tr('parado há {0}', fmtDur(t - x.atualizadoEm));
 }
 function renderExtra() {
   const alvoEl = document.getElementById('d-extra');
   if (!alvoEl) return;
   alvoEl.textContent = '';
-  if (!extra || extra.id !== selecionada) { alvoEl.append(el('div', 'nota', 'Carregando subagentes…')); return; }
+  if (!extra || extra.id !== selecionada) { alvoEl.append(el('div', 'nota', tr('Carregando subagentes…'))); return; }
   const t = agora();
   const subs = extra.subagentes;
   const rod = subs.filter(x => x.status === 'rodando').length;
-  alvoEl.append(el('div', 'bloco', 'Subagentes (' + subs.length + (rod ? ', ' + rod + ' rodando' : '') + ')'));
-  if (!subs.length) alvoEl.append(el('div', 'nota', 'Nenhum subagente nesta sessão.'));
+  alvoEl.append(el('div', 'bloco', tr('Subagentes') + ' (' + subs.length + (rod ? ', ' + tr('{0} rodando', rod) : '') + ')'));
+  if (!subs.length) alvoEl.append(el('div', 'nota', tr('Nenhum subagente nesta sessão.')));
   const arv = el('div', 'arvore');
   for (const x of subs.slice().reverse()) {
     const linha = el('div', 'sub');
     const l1 = el('div', 'l1');
     const pm = el('span', 'pm'); const c = corDoModelo(x.modelo);
-    pm.style.background = rgba(c, 1); pm.style.boxShadow = '0 0 7px ' + rgba(c, 0.8); pm.title = x.modelo || 'modelo desconhecido';
+    pm.style.background = rgba(c, 1); pm.style.boxShadow = '0 0 7px ' + rgba(c, 0.8); pm.title = x.modelo || tr('modelo desconhecido');
     l1.append(pm, el('span', 'tp', x.tipo), el('span', 'ds', x.descricao), el('span', 'cs', dolar(x.custo)));
     const l2 = el('div', 'l2');
-    const st = el('span', 'st-' + x.status, x.status === 'concluido' ? 'concluído' : x.status);
+    const st = el('span', 'st-' + x.status, x.status === 'concluido' ? tr('concluído') : tr(x.status));
     const tm = el('span', 'tm', textoTempoSub(x, t));
     tm.dataset.sub = x.id;
-    l2.append(st, document.createTextNode(' · '), tm, document.createTextNode(' · ' + nomeCurtoModelo(x.modelo) + ' · ' + x.ferramentas + ' ferramentas'));
-    if (x.ultima) l2.append(document.createTextNode(' · última: ' + x.ultima.ferramenta + (x.ultima.resumo ? ' ' + x.ultima.resumo : '')));
+    l2.append(st, document.createTextNode(' · '), tm, document.createTextNode(' · ' + nomeCurtoModelo(x.modelo) + ' · ' + tr('{0} ferramentas', x.ferramentas)));
+    if (x.ultima) l2.append(document.createTextNode(' · ' + tr('última: {0}', x.ultima.ferramenta + (x.ultima.resumo ? ' ' + x.ultima.resumo : ''))));
     linha.append(l1, l2);
     arv.append(linha);
   }
@@ -2750,41 +3059,41 @@ function renderExtra() {
 
   const adv = extra.advisor;
   alvoEl.append(el('div', 'bloco', 'Advisor'));
-  if (!adv.consultas.length) alvoEl.append(el('div', 'nota', 'Sem consultas ao advisor.'));
+  if (!adv.consultas.length) alvoEl.append(el('div', 'nota', tr('Sem consultas ao advisor.')));
   else {
-    alvoEl.append(el('div', null, adv.consultas.length + ' consulta(s) · ' + dolar(adv.custo)));
+    alvoEl.append(el('div', null, tr('{0} consulta(s)', adv.consultas.length) + ' · ' + dolar(adv.custo)));
     const lt = el('div', 'linha-tempo');
     for (const e of adv.consultas.slice(-8).reverse()) {
       const d = el('div');
       d.append(el('span', 'h', hora(e.ts)), el('span', 'f', nomeCurtoModelo(e.modelo)),
-        el('span', 'r', 'leu ' + Math.round(e.tokensLidos / 1000) + 'k tokens · ' + dolar(e.custo)));
+        el('span', 'r', tr('leu {0}k tokens', Math.round(e.tokensLidos / 1000)) + ' · ' + dolar(e.custo)));
       lt.append(d);
     }
     alvoEl.append(lt);
   }
 
-  alvoEl.append(el('div', 'bloco', 'Custo por modelo'));
+  alvoEl.append(el('div', 'bloco', tr('Custo por modelo')));
   const maximo = Math.max(0.0001, ...extra.custoPorModelo.map(m => m.custo));
   for (const m of extra.custoPorModelo) {
     const b = el('div', 'barra-custo');
     const cel = el('div');
-    cel.append(el('div', 'nm', nomeCurtoModelo(m.modelo) + ' · ' + m.chamadas + ' chamadas'));
-    const tr = el('div', 'tr'); const pr = el('div', 'pr');
+    cel.append(el('div', 'nm', nomeCurtoModelo(m.modelo) + ' · ' + tr('{0} chamadas', m.chamadas)));
+    const trilho = el('div', 'tr'); const pr = el('div', 'pr');
     pr.style.width = Math.max(2, (m.custo / maximo) * 100) + '%'; pr.style.background = rgba(corDoModelo(m.modelo), 0.9);
-    tr.append(pr); cel.append(tr);
+    trilho.append(pr); cel.append(trilho);
     b.append(cel, el('div', 'vl', dolar(m.custo)));
     alvoEl.append(b);
   }
-  if (extra.parcial) alvoEl.append(el('div', 'nota', 'Transcrito grande: o custo da sessão principal vem só dos últimos ~4 MB.'));
+  if (extra.parcial) alvoEl.append(el('div', 'nota', tr('Transcrito grande: o custo da sessão principal vem só dos últimos ~4 MB.')));
 
-  alvoEl.append(el('div', 'bloco', 'Últimas ferramentas'));
+  alvoEl.append(el('div', 'bloco', tr('Últimas ferramentas')));
   const lt = el('div', 'linha-tempo');
   for (const f of extra.ferramentas.slice().reverse()) {
     const d = el('div');
     d.append(el('span', 'h', hora(f.ts)), el('span', 'f', f.ferramenta), el('span', 'r', f.resumo));
     lt.append(d);
   }
-  if (!extra.ferramentas.length) lt.append(el('div', 'nota', 'Nenhuma ferramenta registrada.'));
+  if (!extra.ferramentas.length) lt.append(el('div', 'nota', tr('Nenhuma ferramenta registrada.')));
   alvoEl.append(lt);
 }
 function atualizarTemposExtra() {
@@ -2827,7 +3136,7 @@ function atualizarDetalhe(abrir) {
   painel.textContent = '';
   const topo = el('div', 'topo');
   const fechar = el('button', 'bt fechar', '×');
-  fechar.setAttribute('aria-label', 'Fechar detalhe');
+  fechar.setAttribute('aria-label', tr('Fechar detalhe'));
   fechar.addEventListener('click', fecharDetalhe);
   topo.append(el('h3', null, s.titulo || s.nome || s.primeiroPrompt || s.id), fechar);
   painel.append(topo);
@@ -2837,24 +3146,24 @@ function atualizarDetalhe(abrir) {
 
   const dl = el('dl');
   const linha = (rot, val, id) => { const dd = el('dd', null, val); if (id) dd.id = id; dl.append(el('dt', null, rot), dd); };
-  linha('Projeto', [s.projeto, s.subprojeto].filter(Boolean).join(' / ') || '—');
-  linha('Branch', s.branch || '—');
-  linha('Pasta', s.cwd || '—');
-  linha('Início da sessão', '', 'd-inicio');
-  linha('Turno atual', '', 'd-turno');
-  linha('Fim do turno', '', 'd-fim');
-  linha('Custo', s.custo != null ? 'US$ ' + s.custo.toFixed(2) : '—');
-  if (s.subagentesRodando) linha('Subagentes', s.subagentesRodando + ' rodando');
+  linha(tr('Projeto'), projetoDe(s) || '—');
+  linha(tr('Branch'), s.branch || '—');
+  linha(tr('Pasta'), s.cwd || '—');
+  linha(tr('Início da sessão'), '', 'd-inicio');
+  linha(tr('Turno atual'), '', 'd-turno');
+  linha(tr('Fim do turno'), '', 'd-fim');
+  linha(tr('Custo'), s.custo != null ? (LANG === 'en' ? '$' : 'US$ ') + s.custo.toFixed(2) : '—');
+  if (s.subagentesRodando) linha(tr('Subagentes'), tr('{0} rodando', s.subagentesRodando));
   painel.append(dl);
 
-  painel.append(el('div', 'bloco', 'Último prompt'));
+  painel.append(el('div', 'bloco', tr('Último prompt')));
   painel.append(el('div', 'texto', s.ultimoPrompt || '—'));
-  painel.append(el('div', 'bloco', 'Última resposta'));
+  painel.append(el('div', 'bloco', tr('Última resposta')));
   painel.append(el('div', 'texto', s.ultimaResposta || '—'));
 
   const prs = (s.prs || []).filter(p => /^https?:\/\//.test(p.url || ''));
   if (prs.length) {
-    painel.append(el('div', 'bloco', 'Pull requests'));
+    painel.append(el('div', 'bloco', tr('Pull requests')));
     const ul = el('div');
     for (const p of prs) {
       const a = el('a', null, (p.repo ? p.repo.split('/').pop() : 'PR') + (p.numero ? ' #' + p.numero : ''));
@@ -2867,32 +3176,32 @@ function atualizarDetalhe(abrir) {
   const acoes = el('div', 'acoes');
   const bg = s.tipo === 'bg' || s.tipo === 'background';
   if (/^[0-9a-f-]{8,64}$/i.test(s.id)) {
-    const a = el('a', 'bt acao', 'Abrir no VSCode');
+    const a = el('a', 'bt acao', tr('Abrir no VSCode'));
     a.href = 'vscode://anthropic.claude-code/open?session=' + encodeURIComponent(s.id);
     acoes.append(a);
   }
   if (s.aberta && bg && s.jobId) {
-    const t1 = el('button', 'bt', 'Abrir conversa');
-    t1.title = 'Conversa e terminal desta sessão em segundo plano';
+    const t1 = el('button', 'bt', tr('Abrir conversa'));
+    t1.title = tr('Conversa e terminal desta sessão em segundo plano');
     t1.addEventListener('click', () => abrirTerminal(s.jobId, tituloCurto(s, 24)));
-    const t2 = el('button', 'bt perigo', 'Parar');
+    const t2 = el('button', 'bt perigo', tr('Parar'));
     t2.addEventListener('click', () => pararSessao(s));
     acoes.append(t1, t2);
   } else if (/^[0-9a-f-]{36}$/i.test(s.id)) {
-    const v = el('button', 'bt', 'Ver conversa');
-    v.title = 'Lê a conversa (somente leitura)';
+    const v = el('button', 'bt', tr('Ver conversa'));
+    v.title = tr('Lê a conversa (somente leitura)');
     v.addEventListener('click', () => verConversa(s));
     acoes.append(v);
   }
   if (!s.aberta) {
-    const t3 = el('button', 'bt', 'Assumir aqui');
-    t3.title = 'Retoma esta conversa em segundo plano e abre o terminal';
+    const t3 = el('button', 'bt', tr('Assumir aqui'));
+    t3.title = tr('Retoma esta conversa em segundo plano e abre o terminal');
     t3.addEventListener('click', () => assumirSessao(s, t3));
     acoes.append(t3);
   }
   painel.append(acoes);
   if (s.aberta && !bg) {
-    painel.append(el('div', 'nota', 'Aberta numa aba do VSCode: para assumir aqui, feche a aba no VSCode antes. Duas pontas escrevendo na mesma conversa a corromperiam.'));
+    painel.append(el('div', 'nota', tr('Aberta numa aba do VSCode: para assumir aqui, feche a aba no VSCode antes. Duas pontas escrevendo na mesma conversa a corromperiam.')));
   }
   const exEl = el('div'); exEl.id = 'd-extra';
   painel.append(exEl);
@@ -2902,29 +3211,29 @@ function atualizarDetalhe(abrir) {
 }
 function atualizarTempoDetalhe(s, t, emAndamento) {
   const set = (id, v) => { const e = document.getElementById(id); if (e && e.textContent !== v) e.textContent = v; };
-  set('d-inicio', s.inicioSessao ? fmtData(s.inicioSessao) + ' (há ' + fmtDur(t - s.inicioSessao) + ')' : '—');
+  set('d-inicio', s.inicioSessao ? tr('{0} (há {1})', fmtData(s.inicioSessao), fmtDur(t - s.inicioSessao)) : '—');
   set('d-turno', !s.inicioTurno ? (s.inicioTurnoAproximado && s.coluna === 'trabalhando'
-      ? 'em andamento há mais de ' + fmtDur(t - s.inicioTurnoAproximado) + ' (início fora do trecho lido)' : '—')
-    : emAndamento ? fmtData(s.inicioTurno) + ' (em andamento há ' + fmtDur(t - s.inicioTurno) + ')'
-      : fmtData(s.inicioTurno) + ' (durou ' + fmtDur(s.fimTurno - s.inicioTurno) + ')');
-  set('d-fim', s.fimTurno && !emAndamento ? fmtData(s.fimTurno) + ' (há ' + fmtDur(t - s.fimTurno) + ')' : (emAndamento ? 'em andamento' : '—'));
+      ? tr('em andamento há mais de {0} (início fora do trecho lido)', fmtDur(t - s.inicioTurnoAproximado)) : '—')
+    : emAndamento ? tr('{0} (em andamento há {1})', fmtData(s.inicioTurno), fmtDur(t - s.inicioTurno))
+      : tr('{0} (durou {1})', fmtData(s.inicioTurno), fmtDur(s.fimTurno - s.inicioTurno)));
+  set('d-fim', s.fimTurno && !emAndamento ? tr('{0} (há {1})', fmtData(s.fimTurno), fmtDur(t - s.fimTurno)) : (emAndamento ? tr('em andamento') : '—'));
 }
 
 // ---------- uso do plano (status line -> /api/uso) ----------
 let usoDados = null, usoBuscadoEm = 0;
 const corUso = p => p > 90 ? '#ff3b4f' : p > 70 ? '#ffb020' : '#3ddc84';
-const NOME_JANELA = { five_hour: 'Sessão (5h)', seven_day: 'Semanal (7d)' };
+const NOME_JANELA = { five_hour: tr('Sessão (5h)'), seven_day: tr('Semanal (7d)') };
 function segundosAte(w) { return w && w.resetsEm != null ? Math.max(0, w.resetsEm - (Date.now() - usoBuscadoEm) / 1000) : null; }
 function textoZera(w) {
   const seg = segundosAte(w);
-  return seg == null ? (w && w.zerada ? 'zerou' : '') : 'zera em ' + fmtDur(seg);
+  return seg == null ? (w && w.zerada ? tr('zerou') : '') : tr('zera em {0}', fmtDur(seg));
 }
 function renderUso() {
   const corpo = document.getElementById('uso-corpo');
   const aneis = document.getElementById('uso-aneis');
   corpo.textContent = '';
   if (!usoDados || !usoDados.disponivel) {
-    corpo.append(el('div', 'nota', 'Sem dados ainda: o uso chega pelo status line depois da primeira resposta de uma sessão.'));
+    corpo.append(el('div', 'nota', tr('Sem dados ainda: o uso chega pelo status line depois da primeira resposta de uma sessão.')));
     aneis.hidden = true;
     return;
   }
@@ -2957,17 +3266,17 @@ function renderUso() {
     svg.append(fundo, arco, tx); aneis.append(svg);
   }
   const velho = usoDados.velho;
-  const nota = el('div', null, usoDados.idade != null ? 'atualizado há ' + fmtDur(usoDados.idade + (Date.now() - usoBuscadoEm) / 1000) : '');
+  const nota = el('div', null, usoDados.idade != null ? tr('atualizado há {0}', fmtDur(usoDados.idade + (Date.now() - usoBuscadoEm) / 1000)) : '');
   nota.id = 'uso-nota'; nota.dataset.idade = usoDados.idade;
-  if (velho) nota.textContent += ' · abra uma sessão para atualizar';
+  if (velho) nota.textContent += ' · ' + tr('abra uma sessão para atualizar');
   corpo.append(nota);
-  aneis.title = dicas.join('\n') + (velho ? '\n(dado antigo: abra uma sessão para atualizar)' : '');
+  aneis.title = dicas.join('\n') + (velho ? '\n' + tr('(dado antigo: abra uma sessão para atualizar)') : '');
 }
 function tiqueUso() {  // atualiza so os textos de tempo, sem refazer o bloco
   if (!usoDados || !usoDados.disponivel) return;
   for (const l2 of document.querySelectorAll('#uso-corpo .l2')) { const v = textoZera(usoDados[l2.dataset.janela]); if (l2.textContent !== v) l2.textContent = v; }
   const nota = document.getElementById('uso-nota');
-  if (nota && usoDados.idade != null) nota.textContent = 'atualizado há ' + fmtDur(usoDados.idade + (Date.now() - usoBuscadoEm) / 1000) + (usoDados.velho || (usoDados.idade + (Date.now() - usoBuscadoEm) / 1000) > 1800 ? ' · abra uma sessão para atualizar' : '');
+  if (nota && usoDados.idade != null) nota.textContent = tr('atualizado há {0}', fmtDur(usoDados.idade + (Date.now() - usoBuscadoEm) / 1000)) + (usoDados.velho || (usoDados.idade + (Date.now() - usoBuscadoEm) / 1000) > 1800 ? ' · ' + tr('abra uma sessão para atualizar') : '');
 }
 async function buscarUso() {
   try {
@@ -2990,7 +3299,7 @@ setInterval(buscarUso, 30000);
 // ---------- relogio e atualizacao periodica ----------
 function tique() {
   const d = new Date();
-  document.getElementById('relogio').textContent = d.toLocaleTimeString('pt-BR');
+  document.getElementById('relogio').textContent = d.toLocaleTimeString(LOCALE);
   const t = agora();
   for (const [s, e] of refsTempo) { const v = tempoDe(s, t); if (e.textContent !== v) e.textContent = v; }
   if (selecionada) { const s = sessoes.get(selecionada); if (s) atualizarDetalhe(false); atualizarTemposExtra(); }

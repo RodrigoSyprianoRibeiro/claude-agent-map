@@ -9,7 +9,7 @@
 Antes de gravar, copia o settings.json para settings.json.bak-mapa-agentes-<data>. Idempotente.
 `remover` desfaz exatamente isso (e devolve o statusLine original).
 
-Uso: python3 configurar_claude.py instalar|remover [--settings caminho]
+Uso: python3 configurar_claude.py install|uninstall [--settings caminho]
 So biblioteca padrao.
 """
 
@@ -55,7 +55,7 @@ def ler(caminho):
     except FileNotFoundError:
         return {}
     if not isinstance(dados, dict):
-        raise ValueError('%s nao e um objeto JSON' % caminho)
+        raise ValueError('%s is not a JSON object' % caminho)
     return dados
 
 
@@ -83,24 +83,24 @@ def instalar(dados, pasta=AQUI):
     cmd_atual = atual.get('command') if isinstance(atual, dict) else None
     if not cmd_atual:
         dados['statusLine'] = {'type': 'command', 'command': comando_uso(pasta), 'refreshInterval': 60}
-        msgs.append('statusLine: uso do plano registrado')
+        msgs.append('statusLine: plan usage hook added')
     elif MARCA_USO in cmd_atual:
-        msgs.append('statusLine: uso do plano ja estava registrado')
+        msgs.append('statusLine: plan usage hook already present')
     else:
         dados['statusLine'] = dict(atual, command=comando_uso(pasta, cmd_atual))
-        msgs.append('statusLine: o seu foi mantido (encadeado depois do registro do uso)')
+        msgs.append('statusLine: yours was kept (it runs right after the usage hook)')
 
     hooks = dados.setdefault('hooks', {})
     if not isinstance(hooks, dict):
-        raise ValueError('"hooks" do settings.json nao e um objeto')
+        raise ValueError('"hooks" in settings.json is not an object')
     lista = hooks.setdefault('Notification', [])
     ja = any(MARCA_ALERTA in str(h.get('command', '')) for grupo in lista if isinstance(grupo, dict)
              for h in grupo.get('hooks', []) if isinstance(h, dict))
     if ja:
-        msgs.append('Notification: alerta de "precisa de voce" ja estava registrado')
+        msgs.append('Notification: "needs you" alert already present')
     else:
         lista.append({'hooks': [{'type': 'command', 'command': comando_alerta(pasta), 'timeout': 10}]})
-        msgs.append('Notification: alerta de "precisa de voce" registrado')
+        msgs.append('Notification: "needs you" alert added')
     return dados, msgs
 
 
@@ -114,10 +114,10 @@ def remover(dados, pasta=AQUI):
         original = original_encadeado(cmd)
         if original:
             dados['statusLine'] = dict(atual, command=original)
-            msgs.append('statusLine: o original foi restaurado')
+            msgs.append('statusLine: your original was restored')
         else:
             del dados['statusLine']
-            msgs.append('statusLine: removido')
+            msgs.append('statusLine: removed')
     script_alerta = os.path.join(pasta, 'hooks', 'notificacao-sessao.py')
     hooks = dados.get('hooks') if isinstance(dados.get('hooks'), dict) else {}
     lista = hooks.get('Notification')
@@ -127,7 +127,7 @@ def remover(dados, pasta=AQUI):
             if isinstance(grupo, dict) and isinstance(grupo.get('hooks'), list):
                 grupo = dict(grupo, hooks=[h for h in grupo['hooks'] if script_alerta not in str(h.get('command', ''))])
                 if not grupo['hooks']:
-                    msgs.append('Notification: alerta removido')
+                    msgs.append('Notification: alert removed')
                     continue
             novos.append(grupo)
         if novos:
@@ -140,15 +140,15 @@ def remover(dados, pasta=AQUI):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Hooks do Mapa de agentes no settings.json do Claude Code')
-    parser.add_argument('acao', choices=('instalar', 'remover'))
+    parser = argparse.ArgumentParser(description='Agent Map hooks in the Claude Code settings.json')
+    parser.add_argument('acao', choices=('install', 'uninstall', 'instalar', 'remover'))
     parser.add_argument('--settings', default=SETTINGS)
     args = parser.parse_args()
     try:
         antes = ler(args.settings)
-        dados, msgs = (instalar if args.acao == 'instalar' else remover)(json.loads(json.dumps(antes)))
+        dados, msgs = (instalar if args.acao in ('install', 'instalar') else remover)(json.loads(json.dumps(antes)))
     except ValueError as e:
-        sys.exit('settings.json: %s (nada foi alterado)' % e)
+        sys.exit('settings.json: %s (nothing was changed)' % e)
     if dados != antes:
         gravar(args.settings, dados)
     for m in msgs:
