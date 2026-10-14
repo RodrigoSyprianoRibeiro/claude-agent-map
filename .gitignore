@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.venv/
+# config pessoal fica em ~/.config/mapa-agentes, nunca aqui
+config.json
+*.png.tmp

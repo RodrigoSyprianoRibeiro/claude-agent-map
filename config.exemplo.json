@@ -1,0 +1,19 @@
+{
+  "pastaProjetos": "~/dev",
+  "workspaces": [
+    {
+      "id": "empresa",
+      "nome": "Empresa",
+      "pasta": "~/dev/empresa",
+      "cor": "#b478ff"
+    },
+    {
+      "id": "loja",
+      "nome": "Loja",
+      "pasta": "~/dev/loja-workspace",
+      "cor": "#46a0ff",
+      "irmaos": "loja-*",
+      "nosFixos": "loja-*"
+    }
+  ]
+}

@@ -1,0 +1,3025 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de agentes</title>
+<link rel="icon" type="image/svg+xml" href="/static/icones/mapa-agentes.svg">
+<link rel="icon" type="image/png" sizes="256x256" href="/static/icones/256.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/icones/32.png">
+<link rel="stylesheet" href="/static/vendor/xterm.css">
+<style>
+  :root {
+    color-scheme: dark;
+    --fundo: #05080f;
+    --painel: rgba(10, 16, 28, 0.78);
+    --borda: rgba(120, 160, 220, 0.18);
+    --texto: #d7e2f3;
+    --suave: #7f90ab;
+    --atencao: #ff3b4f;
+    --trabalhando: #ffb020;
+    --suavez: #3ddc84;
+    --fechada: #7b8494;
+    --destaque: #5ad1ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--fundo); color: var(--texto);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+  .vidro { background: var(--painel); border: 1px solid var(--borda); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); border-radius: 10px; }
+
+  #barra { position: fixed; top: 10px; left: 10px; right: 10px; height: 46px; display: flex; align-items: center;
+    gap: 18px; padding: 0 14px; z-index: 5; }
+  #barra .marca { font-weight: 600; letter-spacing: 0.22em; font-size: 11px; color: var(--suave); white-space: nowrap; }
+  .contador { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; flex: none; }
+  .contador .sim { font-size: 12px; }
+  .contador b { font-size: 18px; font-variant-numeric: tabular-nums; }
+  .contador span.rot { color: var(--suave); font-size: 12px; }
+  .c-atencao { color: var(--atencao); } .c-trabalhando { color: var(--trabalhando); } .c-suavez { color: var(--suavez); }
+  .c-atencao.vivo b { animation: piscar 1s steps(2, jump-none) infinite; }
+  @keyframes piscar { 50% { opacity: 0.35; } }
+  #barra .espaco { flex: 1; }
+  #barra > * { min-width: 0; }
+  #barra .seg, #barra .bt, #barra .marca { flex: none; }
+  #barra .ic-bt { display: inline-flex; align-items: center; gap: 6px; }
+  #relogio { flex: none; font: 14px ui-monospace, "SF Mono", Menlo, Consolas, monospace; color: var(--suave); font-variant-numeric: tabular-nums; }
+  .seg { display: flex; gap: 0; } .seg .bt { border-radius: 0; margin-left: -1px; padding: 6px 10px; }
+  .seg .bt:first-child { border-radius: 7px 0 0 7px; margin-left: 0; } .seg .bt:last-child { border-radius: 0 7px 7px 0; }
+  .seg .bt.ativo { background: rgba(90,209,255,0.18); border-color: var(--destaque); color: #fff; position: relative; }
+  #sel-proj, #sel-no { text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+  #sel-proj { width: 168px; } #sel-no { width: 190px; }
+  select.bt { border: 1px solid var(--borda); border-radius: 7px; padding: 6px 26px 6px 10px; font: inherit; outline: none; max-width: 210px; appearance: none; -webkit-appearance: none; background-color: rgba(14, 22, 38, 0.92); color: var(--texto);
+    cursor: pointer;
+    background-image: linear-gradient(45deg, transparent 50%, var(--suave) 50%), linear-gradient(135deg, var(--suave) 50%, transparent 50%);
+    background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+  select.bt:hover, select.bt:focus-visible, select.bt.ativo { border-color: var(--destaque); }
+  select.bt option { background: #0a101c; color: var(--texto); }
+  select.bt[hidden] { display: none; }
+  #busca { width: 220px; min-width: 140px; background: rgba(255,255,255,0.05); border: 1px solid var(--borda); border-radius: 7px;
+    color: var(--texto); padding: 6px 10px; font: inherit; outline: none; }
+  #busca:focus { border-color: var(--destaque); box-shadow: 0 0 0 2px rgba(90,209,255,0.18); }
+  button.bt { background: rgba(255,255,255,0.05); border: 1px solid var(--borda); border-radius: 7px; color: var(--texto);
+    padding: 6px 11px; font: inherit; cursor: pointer; white-space: nowrap; }
+  button.bt:hover { border-color: var(--destaque); }
+  button.bt:focus-visible, #busca:focus-visible { outline: 2px solid var(--destaque); outline-offset: 1px; }
+  #conexao { font-size: 11px; color: var(--atencao); display: none; }
+  #conexao.off { display: block; }
+
+  #lista { position: fixed; top: 66px; left: 10px; bottom: 54px; width: 300px; z-index: 4; display: flex; flex-direction: column;
+    transition: transform 0.25s ease; }
+  #lista.recolhida { transform: translateX(calc(-100% - 20px)); }
+  #lista h2 { margin: 0; padding: 12px 14px 8px; font-size: 11px; letter-spacing: 0.2em; color: var(--suave); font-weight: 600; }
+  #itens { overflow-y: auto; flex: 1; padding: 0 6px 8px; scrollbar-width: thin; scrollbar-color: #2a3a55 transparent; }
+  .grupo { margin: 8px 8px 3px; font-size: 11px; color: var(--suave); text-transform: uppercase; letter-spacing: 0.1em; }
+  .item { display: grid; grid-template-columns: 10px 1fr auto; gap: 8px; align-items: center; width: 100%; text-align: left;
+    background: none; border: 0; color: inherit; font: inherit; padding: 6px 8px; border-radius: 7px; cursor: pointer; }
+  .item:hover, .item.sel { background: rgba(255,255,255,0.07); }
+  .item:focus-visible { outline: 2px solid var(--destaque); }
+  .item .pt { width: 8px; height: 8px; border-radius: 50%; }
+  .item .tt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .pj { display: block; font-size: 11px; color: var(--suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item .tp { font-size: 11px; color: var(--suave); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #alca { position: fixed; top: 74px; left: 318px; z-index: 4; width: 22px; height: 40px; padding: 0; transition: left 0.25s ease; }
+  #alca.recolhida { left: 10px; }
+  .vazio { color: var(--suave); padding: 14px; font-size: 12px; }
+
+  #detalhe { position: fixed; top: 66px; right: 10px; bottom: 54px; width: 360px; z-index: 4; overflow-y: auto;
+    padding: 16px; transform: translateX(calc(100% + 20px)); transition: transform 0.25s ease; scrollbar-width: thin;
+    scrollbar-color: #2a3a55 transparent; }
+  #detalhe.aberto { transform: none; }
+  #detalhe .topo { display: flex; gap: 8px; align-items: start; }
+  #detalhe h3 { margin: 0; font-size: 15px; flex: 1; word-break: break-word; }
+  #detalhe .fechar { padding: 2px 8px; }
+  .selo { display: inline-block; margin: 8px 0 2px; padding: 2px 9px; border-radius: 999px; font-size: 11px; border: 1px solid currentColor; }
+  #detalhe dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 12px 0; }
+  #detalhe dt { color: var(--suave); }
+  #detalhe dd { margin: 0; word-break: break-word; }
+  #detalhe .bloco { margin: 12px 0 4px; font-size: 11px; letter-spacing: 0.12em; color: var(--suave); text-transform: uppercase; }
+  #detalhe .texto { background: rgba(255,255,255,0.04); border-radius: 7px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+  #detalhe a { color: var(--destaque); }
+  .reserva { border: 1px dashed var(--borda); border-radius: 8px; padding: 14px; color: var(--suave); text-align: center; margin-top: 14px; }
+  .arvore { margin: 4px 0 0 4px; }
+  .sub { position: relative; padding: 6px 0 6px 18px; border-left: 1px solid var(--borda); }
+  .sub::before { content: ""; position: absolute; left: 0; top: 17px; width: 12px; border-top: 1px solid var(--borda); }
+  .sub:last-child { border-left-color: transparent; } .sub:last-child::after { content: ""; position: absolute; left: 0; top: 0; height: 17px; border-left: 1px solid var(--borda); }
+  .sub .l1 { display: flex; gap: 7px; align-items: center; }
+  .sub .pm { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .sub .tp { font-weight: 600; } .sub .ds { color: var(--suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+  .sub .cs { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--suave); white-space: nowrap; }
+  .sub .l2 { font-size: 11px; color: var(--suave); margin-top: 1px; word-break: break-word; }
+  .st-rodando { color: var(--trabalhando); } .st-concluido { color: var(--suavez); } .st-parado { color: var(--fechada); }
+  .barra-custo { display: grid; grid-template-columns: 1fr 74px; gap: 8px; align-items: center; margin: 3px 0; font-size: 12px; }
+  .barra-custo .tr { height: 7px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; position: relative; }
+  .barra-custo .pr { height: 100%; border-radius: 4px; }
+  .barra-custo .nm { font-size: 11px; color: var(--suave); } .barra-custo .vl { text-align: right; font-variant-numeric: tabular-nums; }
+  .linha-tempo { max-height: 260px; overflow-y: auto; font-size: 12px; scrollbar-width: thin; scrollbar-color: #2a3a55 transparent; }
+  .linha-tempo div { display: grid; grid-template-columns: 54px auto 1fr; gap: 8px; padding: 1px 0; }
+  .linha-tempo .h { color: var(--suave); font-variant-numeric: tabular-nums; } .linha-tempo .f { color: var(--destaque); } .linha-tempo .r { color: var(--suave); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .nota { font-size: 11px; color: var(--suave); margin-top: 3px; }
+  .acao { display: inline-block; margin-top: 12px; text-decoration: none; }
+
+  #legenda { position: fixed; left: 10px; bottom: 10px; right: 10px; z-index: 3; display: flex; gap: 16px; align-items: center;
+    padding: 8px 14px; font-size: 11px; color: var(--suave); pointer-events: none; }
+  #legenda i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+  #legenda .espaco { flex: 1; }
+  #dica { position: fixed; z-index: 6; pointer-events: none; padding: 6px 10px; max-width: 320px; display: none; font-size: 12px; }
+  #dica small { color: var(--suave); display: block; }
+  /* uso do plano */
+  #uso { margin: 0 8px 4px; padding: 8px 10px 9px; border: 1px solid var(--borda); border-radius: 9px; background: rgba(255,255,255,0.03); }
+  #uso-cab { display: flex; align-items: center; justify-content: space-between; width: 100%; background: none; border: 0; color: var(--suave); font: 600 11px/1 system-ui, sans-serif;
+    letter-spacing: 0.16em; cursor: pointer; padding: 0 0 6px; text-transform: uppercase; }
+  #uso.recolhido #uso-cab { padding-bottom: 0; }
+  #uso.recolhido #uso-corpo { display: none; }
+  .uso-linha { margin-top: 7px; }
+  .uso-linha .l1 { display: flex; justify-content: space-between; font-size: 12px; }
+  .uso-linha .l1 b { font-variant-numeric: tabular-nums; }
+  .uso-barra { height: 6px; border-radius: 4px; background: rgba(255,255,255,0.07); overflow: hidden; margin: 4px 0 2px; }
+  .uso-barra i { display: block; height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+  .uso-linha .l2, #uso-nota { font-size: 11px; color: var(--suave); }
+  #uso-nota { margin-top: 7px; }
+  #uso-aneis { display: inline-flex; gap: 5px; align-items: center; flex: none; cursor: default; }
+  #uso-aneis[hidden] { display: none; }
+  #uso-aneis svg { display: block; }
+  .grupo-nova { display: inline-flex; flex: none; }
+  .grupo-nova .bt:first-child { border-radius: 7px 0 0 7px; }
+  .grupo-nova .bt + .bt { border-radius: 0 7px 7px 0; margin-left: -1px; padding: 6px 7px; }
+  #popover-proj { position: fixed; z-index: 15; width: 260px; max-height: 60vh; overflow-y: auto; padding: 6px; }
+  #popover-proj[hidden] { display: none; }
+  #popover-proj .reg { margin: 6px 8px 2px; font-size: 10.5px; letter-spacing: 0.14em; color: var(--suave); text-transform: uppercase; }
+  #popover-proj button { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--texto); font: inherit; padding: 5px 9px; border-radius: 6px; cursor: pointer; }
+  #popover-proj button:hover { background: rgba(255,255,255,0.08); }
+  :root { --doca-px: 0px; }
+  #lista, #detalhe { bottom: calc(54px + var(--doca-px)); }
+  #doca { position: fixed; left: 0; right: 0; bottom: 0; height: 320px; z-index: 8; background: #070b14; border-top: 1px solid var(--borda);
+    display: flex; flex-direction: column; box-shadow: 0 -12px 32px rgba(0,0,0,0.45); }
+  #doca[hidden] { display: none; }
+  #doca-borda { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 2; }
+  #doca-borda:hover { background: rgba(90,209,255,0.25); }
+  .col-barra { box-sizing: border-box; min-height: 42px; display: flex; align-items: center; gap: 6px; padding: 5px 8px; background: rgba(14, 22, 38, 0.95); border-bottom: 1px solid var(--borda); }
+  .col-abas { display: flex; gap: 4px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; align-self: stretch; align-items: center; }
+  #doca-acoes { display: flex; gap: 6px; flex: none; }
+  .col-dividir { padding: 3px 7px; display: inline-flex; align-items: center; }
+  .col-dividir svg { display: block; }
+  #doca-colunas { flex: 1; min-height: 0; display: flex; overflow-x: auto; }
+  .coluna { flex: 1 1 0; min-width: 320px; min-height: 0; display: flex; flex-direction: column; position: relative; }
+  .divisor { flex: none; width: 5px; cursor: col-resize; background: linear-gradient(var(--borda), var(--borda)) center / 1px 100% no-repeat; z-index: 2; }
+  .divisor:hover, .divisor.arrastando { background: rgba(90,209,255,0.35); }
+  #doca-colunas.multi .coluna.col-ativa::after { content: ''; position: absolute; inset: 0; border: 1px solid rgba(90,209,255,0.5); pointer-events: none; z-index: 3; }
+  .aba.arrastada { opacity: 0.4; }
+  .marca-solta { position: fixed; z-index: 30; width: 3px; background: var(--destaque); border-radius: 2px; pointer-events: none; display: none; }
+  .zona-solta { position: fixed; z-index: 30; background: rgba(90,209,255,0.16); border: 2px solid var(--destaque); border-radius: 8px; pointer-events: none; display: none; }
+  @media (max-width: 899px) {  /* tela estreita: as colunas empilham */
+    #doca-colunas { flex-direction: column; overflow-x: hidden; }
+    .coluna { min-width: 0; min-height: 120px; }
+    .divisor { display: none; }
+  }
+  .aba { display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border: 1px solid var(--borda); border-radius: 7px;
+    background: rgba(255,255,255,0.04); color: var(--suave); cursor: pointer; white-space: nowrap; font: inherit; }
+  .aba.ativa { color: var(--texto); border-color: var(--destaque); background: rgba(90,209,255,0.12); }
+  .aba.desanexada { opacity: 0.6; font-style: italic; }
+  .aba .x { background: none; border: 0; color: inherit; cursor: pointer; padding: 0 5px; font: inherit; border-radius: 4px; }
+  .aba .x:hover { background: rgba(255,255,255,0.12); }
+  .col-corpo { flex: 1; position: relative; min-height: 0; }
+  .term { position: absolute; inset: 6px 8px 8px; display: none; flex-direction: column; gap: 8px; }
+  .term.ativa { display: flex; }
+  .vista { flex: 1; min-height: 0; position: relative; }
+  .term-x { position: absolute; inset: 0; }
+  .term-x .xterm { height: 100%; }
+  /* modo conversa: o xterm continua montado e com tamanho (o attach e a leitura da tela dependem dele), so invisivel */
+  .term:not(.modo-terminal) .term-x { visibility: hidden; pointer-events: none; }
+  .term.modo-terminal .conversa { display: none; }
+  .modo-seg { position: absolute; top: 6px; right: 14px; z-index: 4; display: flex; background: rgba(10,16,28,0.92); border: 1px solid var(--borda); border-radius: 8px; padding: 2px; }
+  .modo-seg button { background: none; border: 0; color: var(--suave); font: 12px system-ui, sans-serif; padding: 3px 10px; border-radius: 6px; cursor: pointer; }
+  .modo-seg button.ativo { background: rgba(90,209,255,0.16); color: var(--texto); }
+  .modo-seg button:focus-visible { outline: 2px solid var(--destaque); }
+  .term.modo-terminal .modo-seg { opacity: 0.5; } .term.modo-terminal .modo-seg:hover { opacity: 1; }
+
+  /* ---- conversa (estilo da extensao do VSCode) ---- */
+  .conversa { position: absolute; inset: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2a3a55 transparent; }
+  .conv-col { max-width: 880px; margin: 0 auto; padding: 14px 18px 8px; font: 13.5px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--texto); }
+  .conv-topo { text-align: center; margin-bottom: 10px; }
+  .conv-topo[hidden] { display: none; }
+  .conv-vazio { color: var(--suave); text-align: center; padding: 30px 0; }
+  .conv-lista > * { margin: 0 0 10px; }
+  .msg-u { position: relative; background: rgba(255,255,255,0.055); border: 1px solid var(--borda); border-radius: 10px; padding: 8px 12px; margin-top: 18px !important; }
+  .msg-u-tx { white-space: pre-wrap; word-break: break-word; }
+  .msg-u.fantasma { opacity: 0.55; border-style: dashed; }
+  .chip { display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 999px; font-size: 11px; color: var(--suave); border: 1px solid var(--borda); }
+  .msg-a { position: relative; }
+  .msg-acoes { position: absolute; top: -4px; right: 0; display: none; gap: 4px; }
+  .msg-u:hover .msg-acoes, .msg-a:hover .msg-acoes { display: flex; }
+  .bt-mini { background: rgba(14,22,38,0.95); border: 1px solid var(--borda); color: var(--suave); border-radius: 6px; font: 11px system-ui, sans-serif; padding: 2px 8px; cursor: pointer; }
+  .bt-mini:hover { color: var(--texto); border-color: var(--destaque); }
+  .md { word-break: break-word; }
+  .md > :first-child { margin-top: 0; } .md > :last-child { margin-bottom: 0; }
+  .md p { margin: 0 0 8px; }
+  .md h1, .md h2, .md h3, .md h4 { margin: 14px 0 6px; line-height: 1.3; } .md h1 { font-size: 17px; } .md h2 { font-size: 15.5px; } .md h3, .md h4 { font-size: 14px; }
+  .md ul, .md ol { margin: 4px 0 8px; padding-left: 22px; } .md li { margin: 2px 0; }
+  .md a { color: var(--destaque); }
+  .md code { font: 12.5px ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace; background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 4px; }
+  .md pre code { background: none; padding: 0; }
+  .bloco-cod { position: relative; margin: 6px 0 10px; }
+  .bloco-cod pre, pre.cod { margin: 0; background: #0b1220; border: 1px solid var(--borda); border-radius: 8px; padding: 9px 12px; overflow-x: auto;
+    font: 12.5px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace; white-space: pre; scrollbar-width: thin; }
+  .bloco-cod .bt-mini { position: absolute; top: 5px; right: 6px; opacity: 0; }
+  .bloco-cod:hover .bt-mini { opacity: 1; }
+  .md table { border-collapse: collapse; margin: 6px 0 10px; display: block; overflow-x: auto; }
+  .md th, .md td { border: 1px solid var(--borda); padding: 4px 9px; text-align: left; vertical-align: top; }
+  .md th { background: rgba(255,255,255,0.05); }
+  .md blockquote { margin: 6px 0; padding: 2px 12px; border-left: 3px solid var(--borda); color: var(--suave); }
+  .md hr { border: 0; border-top: 1px solid var(--borda); margin: 12px 0; }
+  .ferr { font-size: 12.5px; }
+  .ferr + .ferr { margin-top: -6px !important; }
+  .ferr-cab { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; color: var(--texto); font: inherit; text-align: left; padding: 3px 0; cursor: pointer; }
+  .ferr-cab:hover b { color: var(--destaque); }
+  .ferr-pt { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--fechada); }
+  .ferr.ok .ferr-pt { background: var(--suavez); } .ferr.erro .ferr-pt { background: var(--atencao); }
+  .term.trabalhando .ferr.pendente .ferr-pt { background: var(--trabalhando); animation: piscar 1s ease-in-out infinite; }
+  .ferr-cab b { font-weight: 600; flex: none; }
+  .ferr-rs { color: var(--suave); font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .ferr-corpo { margin: 4px 0 6px 16px; border: 1px solid var(--borda); border-radius: 8px; overflow: hidden; }
+  .ferr-linha { display: grid; grid-template-columns: 38px 1fr; border-top: 1px solid var(--borda); }
+  .ferr-linha:first-child { border-top: 0; }
+  .ferr-linha > span { padding: 7px 0 0 9px; font-size: 10.5px; letter-spacing: 0.08em; color: var(--suave); }
+  .ferr-linha pre { margin: 0; padding: 7px 10px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+    font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace; scrollbar-width: thin; }
+  .ferr-linha.erro pre { color: #ffb3bb; }
+  .diff { margin: 0; padding: 6px 0; max-height: 260px; overflow: auto; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace; scrollbar-width: thin; }
+  .diff div { white-space: pre-wrap; word-break: break-word; padding: 0 10px; }
+  .diff .rem { background: rgba(255,59,79,0.13); color: #ffc2c8; } .diff .add { background: rgba(61,220,132,0.12); color: #bff5d5; }
+  .pensou { color: var(--suave); font-size: 12.5px; }
+  .pensou summary { cursor: pointer; font-style: italic; }
+  .pensou-tx { white-space: pre-wrap; margin: 6px 0 0 14px; border-left: 2px solid var(--borda); padding-left: 10px; }
+  .aviso-c { color: var(--suave); font-size: 12px; text-align: center; }
+  .aviso-c.cmd { text-align: left; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+  .aviso-c.erro { color: #ffb3bb; text-align: left; border: 1px solid rgba(255,59,79,0.45); border-radius: 8px; padding: 6px 10px; white-space: pre-wrap; }
+  .aviso-c.interrompido { color: #ffb3bb; }
+  .conv-fim { display: flex; align-items: center; gap: 9px; color: var(--trabalhando); font-size: 12.5px; padding: 4px 0 10px; }
+  .conv-fim[hidden] { display: none; }
+  .giro { width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(255,176,32,0.25); border-top-color: var(--trabalhando); animation: girar 0.9s linear infinite; flex: none; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+  .pergunta { flex: none; border: 1px solid var(--trabalhando); background: rgba(40, 28, 6, 0.55); border-radius: 12px; padding: 10px 12px; }
+  .pergunta[hidden] { display: none; }
+  .pergunta pre { margin: 0 0 8px; max-height: 150px; overflow: auto; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre-wrap; color: #ffe0a3; }
+  .pergunta .ops { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pergunta .ops .bt.sel { border-color: var(--trabalhando); }
+  .nota-leitura { flex: none; display: flex; align-items: center; gap: 12px; justify-content: center; color: var(--suave); font-size: 12px;
+    border: 1px dashed var(--borda); border-radius: 10px; padding: 8px 12px; }
+  .aviso-confianca { position: absolute; left: 12px; right: 12px; bottom: 10px; z-index: 3; display: flex; gap: 12px; align-items: center; justify-content: space-between;
+    padding: 10px 14px; background: rgba(40, 28, 6, 0.96); border: 1px solid var(--trabalhando); border-radius: 10px; color: #ffe0a3; }
+  .composer { flex: none; position: relative; border: 1px solid var(--borda); border-radius: 12px; background: rgba(14, 22, 38, 0.92); padding: 8px 10px 6px; }
+  .composer:focus-within { border-color: var(--destaque); box-shadow: 0 0 0 2px rgba(90,209,255,0.14); }
+  .composer.arrastando { border-color: var(--trabalhando); background: rgba(255,176,32,0.08); }
+  .composer.off { opacity: 0.5; pointer-events: none; }
+  .composer textarea { width: 100%; resize: none; border: 0; outline: none; background: transparent; color: var(--texto); font: 13px/1.45 system-ui, sans-serif;
+    height: 22px; max-height: 160px; overflow-y: auto; padding: 0; display: block; }
+  .anexos-c { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .anexos-c:empty { display: none; }
+  .anexos-c .mini { position: relative; width: 54px; height: 54px; border-radius: 8px; overflow: hidden; border: 1px solid var(--borda); }
+  .anexos-c .mini img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .anexos-c .mini button { position: absolute; top: 2px; right: 2px; width: 18px; height: 18px; border-radius: 50%; border: 0; background: rgba(5,8,15,0.85);
+    color: #fff; cursor: pointer; line-height: 16px; padding: 0; font-size: 13px; }
+  .barra-c { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .barra-c .espaco { flex: 1; }
+  .barra-c .bt, .pilula { padding: 3px 10px; font-size: 12px; }
+  .pilula { border-radius: 999px !important; position: relative; }
+  .enviar { width: 30px; height: 28px; padding: 0 !important; border-radius: 50% !important; background: var(--destaque) !important; color: #05080f !important; font-weight: 700; border-color: var(--destaque) !important; }
+  .enviar:disabled { opacity: 0.35; cursor: default; }
+  .menu-pilula { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 3; min-width: 150px; padding: 4px; background: #0b121f; border: 1px solid var(--borda); border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.6); }
+  .menu-pilula button { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--texto); font: inherit; padding: 5px 9px; border-radius: 6px; cursor: pointer; }
+  .menu-pilula button:hover, .menu-pilula button.atual { background: rgba(255,255,255,0.09); }
+  body.max-term #doca { height: 100vh !important; }
+  body.max-term #barra, body.max-term #lista, body.max-term #alca, body.max-term #detalhe, body.max-term #legenda { display: none; }
+  body.max-term canvas#mapa { inset: auto 16px 16px auto; width: 280px; height: auto; aspect-ratio: var(--ar, 1.6); z-index: 9; border: 1px solid var(--borda);
+    border-radius: 10px; cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
+  body.doca-aberta #legenda { display: none; }
+  #toast { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); z-index: 20; padding: 8px 14px; max-width: 70vw; display: none;
+    background: rgba(10,16,28,0.95); border: 1px solid var(--borda); border-radius: 9px; }
+  #toast.erro { border-color: var(--atencao); color: #ffc2c8; }
+  #menu-no { position: fixed; z-index: 15; padding: 4px; min-width: 190px; }
+  #menu-no[hidden] { display: none; }
+  #menu-no button { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--texto); font: inherit; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+  #menu-no button:hover { background: rgba(255,255,255,0.08); }
+  dialog#dlg-nova { background: #0b121f; color: var(--texto); border: 1px solid var(--borda); border-radius: 12px; padding: 18px; width: min(460px, 92vw); }
+  dialog#dlg-nova::backdrop { background: rgba(2, 4, 10, 0.65); }
+  dialog#dlg-nova h3 { margin: 0 0 12px; font-size: 15px; }
+  dialog#dlg-nova label { display: block; margin: 10px 0 3px; color: var(--suave); font-size: 12px; }
+  dialog#dlg-nova select, dialog#dlg-nova textarea, dialog#dlg-nova input { width: 100%; background: rgba(14,22,38,0.92); color: var(--texto); border: 1px solid var(--borda);
+    border-radius: 7px; padding: 7px 9px; font: inherit; max-width: none; }
+  dialog#dlg-nova textarea { min-height: 90px; resize: vertical; }
+  dialog#dlg-nova .rodape { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+  .acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+  .acoes .acao { margin-top: 0; }
+  button.perigo { border-color: rgba(255,59,79,0.5); color: #ffb3bb; }
+  button.perigo:hover { border-color: var(--atencao); }
+  /* barra superior: cabe em 1366 e em 1600 */
+  #busca { transition: width 0.15s ease; }
+  @media (max-width: 1699px) {
+    #barra { gap: 12px; padding: 0 12px; }
+    #barra .ic-bt .tx { display: none; }
+    #barra .ic-bt { padding: 6px 9px; }
+    .contador .rot { display: none; }
+    #busca { width: 150px; } #busca:focus { width: 260px; }
+    #sel-proj { width: 150px; } #sel-no { width: 160px; }
+  }
+  @media (max-width: 1499px) {
+    #relogio, #barra .marca { display: none; }
+    #barra { gap: 10px; }
+    #sel-proj { width: 130px; } #sel-no { width: 140px; }
+    .seg .bt { padding: 6px 8px; }
+  }
+  @media (max-width: 900px) { #detalhe { width: min(360px, 90vw); } #busca { width: 140px; } #barra .marca { display: none; } }
+</style>
+</head>
+<body>
+<canvas id="mapa" tabindex="0" aria-label="Mapa das sessões do Claude Code"></canvas>
+
+<div id="barra" class="vidro">
+  <span class="marca">MAPA DE AGENTES</span>
+  <span class="contador c-atencao" id="n-atencao" title="Precisam de você"><span class="sim">●</span><b>0</b><span class="rot">precisam de você</span></span>
+  <span class="contador c-trabalhando" id="n-trabalhando" title="Trabalhando"><span class="sim">◐</span><b>0</b><span class="rot">trabalhando</span></span>
+  <span class="contador c-suavez" id="n-suavez" title="Sua vez"><span class="sim">○</span><b>0</b><span class="rot">sua vez</span></span>
+  <span class="seg" id="seg-foco" role="group" aria-label="Foco">
+    <button class="bt" data-foco="" title="Tudo (1)">Tudo</button>
+  </span>
+  <select id="sel-proj" class="bt" aria-label="Projetos avulsos"></select>
+  <select id="sel-no" class="bt" aria-label="Projeto" hidden></select>
+  <span class="espaco"></span>
+  <span id="conexao">sem conexão</span>
+  <input id="busca" type="search" placeholder="Buscar  ( / )" autocomplete="off" aria-label="Buscar">
+  <span id="uso-aneis" hidden></span>
+  <span class="grupo-nova">
+    <button class="bt" id="nova-sessao" title="Nova sessão agora (Opus, esforço high) na pasta do nó selecionado ou do foco. Shift+clique: com opções.">+ sessão</button>
+    <button class="bt" id="nova-sessao-mais" title="Nova sessão com nome, prompt, modelo e esforço" aria-label="Nova sessão com opções">▾</button>
+  </span>
+  <button class="bt ic-bt" id="nova-janela" title="Nova janela: abre este recorte em outra janela" aria-label="Nova janela"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="1.5" y="3.5" width="11" height="9" rx="1.5"/><path d="M5 1.5h9.5V10"/></svg><span class="tx">Nova janela</span></button>
+  <button class="bt ic-bt" id="enquadrar" title="Enquadrar tudo (0)" aria-label="Enquadrar"><svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M1.5 5.5v-4h4M10.5 1.5h4v4M14.5 10.5v4h-4M5.5 14.5h-4v-4"/></svg><span class="tx">Enquadrar</span></button>
+  <span id="relogio">--:--:--</span>
+</div>
+
+<aside id="lista" class="vidro" aria-label="Agora">
+  <div id="uso" aria-label="Uso do plano">
+    <button id="uso-cab" aria-expanded="true"><span>Uso do plano</span><span id="uso-seta">▾</span></button>
+    <div id="uso-corpo"></div>
+  </div>
+  <h2>AGORA</h2>
+  <div id="itens"></div>
+</aside>
+<button class="bt vidro" id="alca" title="Recolher lista" aria-label="Recolher lista">&lsaquo;</button>
+
+<aside id="detalhe" class="vidro" aria-live="polite"></aside>
+
+<div id="legenda" class="vidro">
+  <span><i style="background:var(--atencao)"></i>precisa de você</span>
+  <span><i style="background:var(--trabalhando)"></i>trabalhando</span>
+  <span><i style="background:var(--suavez)"></i>sua vez</span>
+  <span><i style="background:var(--fechada)"></i>fechada</span>
+  <span class="espaco"></span>
+  <span>roda: zoom · arrastar: mover · arrastar nó: reposicionar · duplo clique na região: zoom · 0: enquadrar</span>
+</div>
+<div id="dica" class="vidro"></div>
+<section id="doca" hidden aria-label="Terminais">
+  <div id="doca-borda" title="Arraste para redimensionar"></div>
+  <div id="doca-colunas"></div>
+  <div id="doca-acoes">
+    <button class="bt" id="doca-max" title="Maximizar a doca (todas as colunas)">Maximizar</button>
+    <button class="bt" id="doca-min" title="Esconder a doca (os terminais continuam conectados)">Recolher</button>
+  </div>
+</section>
+<div id="menu-no" class="vidro" hidden></div>
+<div id="popover-proj" class="vidro" hidden></div>
+<div id="toast" role="status"></div>
+<dialog id="dlg-nova">
+  <form method="dialog" id="form-nova">
+    <h3>Nova sessão em segundo plano</h3>
+    <label for="nv-no">Projeto</label><select id="nv-no"></select>
+    <label for="nv-prompt">Prompt inicial (opcional)</label><textarea id="nv-prompt" placeholder="O que ela deve fazer?"></textarea>
+    <label for="nv-nome">Nome (opcional)</label><input id="nv-nome" maxlength="60" autocomplete="off">
+    <div style="display:flex;gap:10px"><div style="flex:1"><label for="nv-modelo">Modelo</label>
+      <select id="nv-modelo"><option value="">padrão</option><option value="opus">Opus 5.5</option><option value="sonnet">Sonnet 5.5</option><option value="haiku">Haiku 5.5</option><option value="fable">Fable 5.1</option></select></div>
+    <div style="flex:1"><label for="nv-esforco">Esforço</label>
+      <select id="nv-esforco"><option value="">padrão</option><option>low</option><option>medium</option><option>high</option><option>xhigh</option><option>max</option></select></div></div>
+    <div class="rodape"><button type="button" class="bt" id="nv-cancelar">Cancelar</button><button type="submit" class="bt" id="nv-criar">Criar e abrir terminal</button></div>
+  </form>
+</dialog>
+
+<script src="/static/vendor/xterm.js"></script>
+<script src="/static/vendor/addon-fit.js"></script>
+<script src="/static/vendor/marked.min.js"></script>
+<script src="/static/vendor/purify.min.js"></script>
+<script>
+'use strict';
+const TOKEN = '__TOKEN__';
+const JANELA_DIAS = 14;
+const COR = {
+  atencao: [255, 59, 79], trabalhando: [255, 176, 32], suaVez: [61, 220, 132], fechada: [123, 132, 148],
+};
+const COR_REGIAO = {};  // workspaces: cor do config.json (registrarRegioes); avulsos: derivada do nome
+function corDaRegiao(id) {  // projeto avulso: matiz estavel derivado do nome
+  if (COR_REGIAO[id]) return COR_REGIAO[id];
+  const h = (hash(id) % 360) / 360, s = 0.55, l = 0.6;
+  const q = l + s - l * s, p = 2 * l - q;
+  const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 0.5 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
+  return (COR_REGIAO[id] = [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255]);
+}
+const NOME_COLUNA = { atencao: 'precisa de você', trabalhando: 'trabalhando', suaVez: 'sua vez', fechada: 'fechada' };
+const ORDEM_COLUNA = { atencao: 0, trabalhando: 1, suaVez: 2, fechada: 3 };
+
+const reduzMovimento = matchMedia('(prefers-reduced-motion: reduce)');
+let escalaMovimento = reduzMovimento.matches ? 0.15 : 1;
+reduzMovimento.addEventListener?.('change', e => { escalaMovimento = e.matches ? 0.15 : 1; });
+
+const canvas = document.getElementById('mapa');
+const ctx = canvas.getContext('2d', { alpha: false });
+let L = 0, A = 0, dpr = 1;
+
+// ---------- estado ----------
+const nos = new Map();       // id -> no
+const sessoes = new Map();   // id -> sessao (com estado de animacao)
+let regioes = [];
+let ordemDesenho = [];
+let primeiraCarga = true;
+let ultimoEstado = 0;
+let selecionada = null;      // id
+let seguindo = null;         // id que a camera acompanha
+let hover = null;            // sessao
+let hoverNo = null;
+let noSel = null;   // no selecionado no mapa (clique no no, ou no da sessao selecionada)
+let padraoNovaSessao = { modelo: 'opus', esforco: 'high' };  // "+ sessao" instantaneo (testes trocam para haiku/low)
+let busca = '';
+const NOME_REGIAO = {};  // workspaces: nome do config.json
+const nomeDaRegiao = id => NOME_REGIAO[id] || id;
+let grandes = [];  // ids dos workspaces, na ordem do config: botoes de foco e atalhos 2..9
+// workspaces vem do servidor: botao de foco, nome e cor de cada um (refeito so quando a lista muda)
+function registrarRegioes(lista) {
+  const ws = (lista || []).filter(r => r.grande);
+  const ass = ws.map(r => r.id + '|' + r.rotulo + '|' + r.cor).join(',');
+  if (ass === registrarRegioes.ass) return;
+  registrarRegioes.ass = ass;
+  grandes = ws.map(r => r.id);
+  for (const r of ws) {
+    NOME_REGIAO[r.id] = r.rotulo || r.id;
+    const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(r.cor || '');
+    if (m) COR_REGIAO[r.id] = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+  }
+  const seg = document.getElementById('seg-foco');
+  for (const b of seg.querySelectorAll('.bt[data-foco]:not([data-foco=""])')) b.remove();
+  ws.forEach((r, i) => {
+    const b = el('button', 'bt', NOME_REGIAO[r.id]);
+    b.dataset.foco = r.id;
+    if (i < 8) b.title = NOME_REGIAO[r.id] + ' (' + (i + 2) + ')';
+    b.addEventListener('click', () => definirFoco(r.id));
+    seg.append(b);
+  });
+  sincronizarFoco(false);
+}
+let noFoco = null;  // no em destaque: o do foco ou o unico no do projeto avulso em foco
+let foco = { regiao: null, no: null };  // no = id completo ("empresa/portal")
+let dados = null;                       // ultimo estado recebido, sem filtro
+let todosNos = [];                      // todos os nos, para o seletor de projeto
+
+function lerFocoDaUrl() {
+  const v = new URLSearchParams(location.search).get('foco') || '';
+  const i = v.indexOf('/');
+  const regiao = i < 0 ? v : v.slice(0, i);
+  if (!regiao) return { regiao: null, no: null };
+  return { regiao, no: i < 0 || i === v.length - 1 ? null : v };
+}
+function valorFoco(f) { return f.no || f.regiao || ''; }
+function tituloFoco() {
+  if (!foco.regiao) return 'Mapa';
+  const nome = foco.no ? foco.no.slice(foco.no.indexOf('/') + 1) : '';
+  return 'Mapa · ' + nomeDaRegiao(foco.regiao) + (nome ? ' / ' + nome : '');
+}
+
+const cam = { x: 0, y: 0, k: 0.3 };
+const alvo = { x: 0, y: 0, k: 0.3 };
+let arrasto = null;
+let poligonos = 0;
+
+function el(tag, classe, texto) {
+  const e = document.createElement(tag);
+  if (classe) e.className = classe;
+  if (texto != null) e.textContent = texto;
+  return e;
+}
+const rgba = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a + ')';
+const lerp = (a, b, t) => a + (b - a) * t;
+const limitar = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function hash(texto) {
+  let h = 2166136261;
+  for (let i = 0; i < texto.length; i++) { h ^= texto.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h ^= h >>> 15; h = Math.imul(h, 2246822507); h ^= h >>> 13;
+  return h >>> 0;
+}
+
+function agora() { return Date.now() / 1000; }
+
+function fmtDur(seg) {
+  seg = Math.max(0, Math.round(seg));
+  if (seg < 60) return seg + ' s';
+  if (seg < 3600) return Math.floor(seg / 60) + ' min';
+  if (seg < 86400) {
+    const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60);
+    return h + ' h' + (m ? ' ' + m + ' min' : '');
+  }
+  const d = Math.floor(seg / 86400), h = Math.floor((seg % 86400) / 3600);
+  return d + ' d' + (h ? ' ' + h + ' h' : '');
+}
+function fmtData(t) {
+  if (!t) return '—';
+  return new Date(t * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function tituloCurto(s, max) {
+  const t = (s.titulo || s.nome || s.primeiroPrompt || s.id.slice(0, 8)).replace(/\s+/g, ' ');
+  return t.length > max ? t.slice(0, max - 1) + '…' : t;
+}
+function tempoDe(s, t) {
+  switch (s.coluna) {
+    case 'atencao': {
+      let ts = s.atencao && s.atencao.ts;
+      if (ts > 1e12) ts /= 1000;
+      return ts ? 'aguardando há ' + fmtDur(t - ts) : 'aguardando você';
+    }
+    case 'trabalhando':
+      // nunca usa inicioSessao: sem prompt achado, so o inicio aproximado (janela lida) e "mais de X"
+      if (s.inicioTurno) return 'rodando há ' + fmtDur(t - s.inicioTurno);
+      return s.inicioTurnoAproximado ? 'rodando há mais de ' + fmtDur(t - s.inicioTurnoAproximado) : 'rodando';
+    case 'suaVez': {
+      const fim = s.fimTurno || s.ultimaAtividade;
+      return fim ? 'terminou há ' + fmtDur(t - fim) : 'terminou';
+    }
+    default:
+      return s.ultimaAtividade ? 'fechada há ' + fmtDur(t - s.ultimaAtividade) : 'fechada';
+  }
+}
+
+// ---------- fundo: estrelas e grade ----------
+const estrelas = [];
+(function gerarEstrelas() {
+  let x = 12345;
+  const rnd = () => { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; return x / 4294967296; };
+  for (let i = 0; i < 190; i++) {
+    const camada = rnd() < 0.6 ? 0 : (rnd() < 0.6 ? 1 : 2);
+    estrelas.push({ x: rnd(), y: rnd(), camada, r: 0.4 + camada * 0.45 + rnd() * 0.4, a: 0.25 + rnd() * 0.55, f: rnd() * 6.28 });
+  }
+})();
+
+// ---------- brilhos pre-renderizados ----------
+const brilhos = {};
+function brilho(cor) {
+  const chave = cor.join(',');
+  if (brilhos[chave]) return brilhos[chave];
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, rgba(cor, 0.95));
+  grad.addColorStop(0.2, rgba(cor, 0.42));
+  grad.addColorStop(0.55, rgba(cor, 0.1));
+  grad.addColorStop(1, rgba(cor, 0));
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  return (brilhos[chave] = c);
+}
+function desenharBrilho(cor, x, y, raio, alfa) {
+  if (alfa <= 0.01) return;
+  ctx.globalAlpha = Math.min(1, alfa);
+  ctx.drawImage(brilho(cor), x - raio, y - raio, raio * 2, raio * 2);
+  ctx.globalAlpha = 1;
+}
+
+// ---------- camera ----------
+function escalaVisual() { return limitar(Math.pow(cam.k, 0.6), 0.28, 3.2); }
+function paraTela(wx, wy) { return [(wx - cam.x) * cam.k + L / 2, (wy - cam.y) * cam.k + A / 2]; }
+function paraMundo(sx, sy) { return [(sx - L / 2) / cam.k + cam.x, (sy - A / 2) / cam.k + cam.y]; }
+
+function docaPx() { return document.body.classList.contains('doca-aberta') ? parseInt(getComputedStyle(document.documentElement).getPropertyValue('--doca-px')) || 0 : 0; }
+
+function enquadrarNo(n) {
+  // tamanhos visuais escalam com k^0.6; o maior raio de orbita (mundo, em unidades de tamanho) cabe na area util
+  const esq = document.getElementById('lista').classList.contains('recolhida') ? 0 : 320;
+  const dir = document.getElementById('detalhe').classList.contains('aberto') ? 380 : 0;
+  const util = Math.min(L - esq - dir - 80, A - 200 - docaPx()) / 2;
+  let rmax = raioNo(n) + 40;
+  for (const s of sessoes.values()) if (s.no === n.id) rmax = Math.max(rmax, raioOrbita(s, n) + 40);
+  const ks = util / rmax;
+  alvo.k = limitar(Math.pow(ks, 1 / 0.6), 0.1, 4);
+  alvo.x = n.x - (esq - dir) / 2 / alvo.k;
+  alvo.y = n.y - (60 / 2) / alvo.k;
+  seguindo = null;
+}
+
+function enquadrar(lista) {
+  if (!lista && noFoco && nos.has(noFoco)) { enquadrarNo(nos.get(noFoco)); return; }
+  let a = lista;
+  if (!a || !a.length) {
+    a = regioes.filter(r => [...nos.values()].some(n => n.regiao === r.id));
+    if (!a.length) a = regioes;
+  }
+  if (!a.length) return;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const r of a) {
+    x0 = Math.min(x0, r.x - r.raio); x1 = Math.max(x1, r.x + r.raio);
+    y0 = Math.min(y0, r.y - r.raio); y1 = Math.max(y1, r.y + r.raio);
+  }
+  const larg = Math.max(1, x1 - x0), alt = Math.max(1, y1 - y0);
+  // margens em pixels: barra superior + titulo da regiao (acima do contorno), legenda embaixo,
+  // lista (esquerda) e detalhe (direita) quando abertos
+  const esq = document.getElementById('lista').classList.contains('recolhida') ? 0 : 320;
+  const dir = document.getElementById('detalhe').classList.contains('aberto') ? 380 : 0;
+  const topo = 120, base = 60 + docaPx(), lado = 40;
+  const k = limitar(Math.min((L - esq - dir - 2 * lado) / larg, (A - topo - base) / alt), 0.05, 4);
+  alvo.k = k;
+  alvo.x = (x0 + x1) / 2 - (esq - dir) / 2 / k;
+  alvo.y = (y0 + y1) / 2 - (topo - base) / 2 / k;
+  seguindo = null;
+}
+
+// ---------- dados ----------
+function novaSessao(d, t, animar) {
+  const h = hash(d.id), h2 = hash(d.id + 'orb');
+  return {
+    id: d.id, h, nascimento: t, animarNascimento: animar,
+    ang: (h % 6283) / 1000, dir: (h2 & 1) ? 1 : -1, vel: 0.05 + ((h2 >>> 3) % 50) / 600,
+    banda: h2 >>> 8, fase: (h % 628) / 100,
+    cor: COR[d.coluna === 'atencao' ? 'atencao' : d.coluna === 'trabalhando' ? 'trabalhando' : d.coluna === 'suaVez' ? 'suaVez' : 'fechada'].slice(),
+    vivacidade: d.aberta ? 1 : 0, pulso: animar ? t : 0, sx: 0, sy: 0, sr: 4, alfa: 1, rotulo: '', rotuloEm: 0,
+    ...d,
+  };
+}
+
+function noNoFoco(n) {
+  return !foco.regiao || (foco.no ? n.id === foco.no : n.regiao === foco.regiao);
+}
+
+function aplicarEstado(est) {
+  const t = agora();
+  dados = est;
+  registrarRegioes(est.regioes);
+  todosNos = est.nos || [];
+  // regiao do foco que nao existe mais (projeto antigo demais): volta para Tudo
+  if (foco.regiao && !(est.regioes || []).some(r => r.id === foco.regiao)) { foco = { regiao: null, no: null }; sincronizarFoco(false); }
+  // foco num no que sumiu (ex.: so fechadas antigas): volta para a regiao
+  if (foco.no && !todosNos.some(n => n.id === foco.no)) { foco.no = null; sincronizarFoco(false); }
+  // o filtro REMOVE da tela regioes, nos e sessoes fora do foco (nao so esmaece)
+  const nosDaRegiao = todosNos.filter(n => n.regiao === foco.regiao);
+  noFoco = foco.no || (foco.regiao && nosDaRegiao.length === 1 ? nosDaRegiao[0].id : null);
+  regioes = (est.regioes || []).filter(r => !foco.regiao || (!foco.no && r.id === foco.regiao));
+  const vistos = new Set();
+  for (const n of (est.nos || []).filter(noNoFoco)) {
+    vistos.add(n.id);
+    const ant = nos.get(n.id);
+    if (ant) {
+      ant.total = n.total; ant.abertas = n.abertas; ant.nome = n.nome; ant.regiao = n.regiao; ant.mult = noFoco === n.id ? 1.8 : 1;
+      if (!(arrasto && arrasto.tipo === 'no' && arrasto.no === ant)) { ant.x = n.x; ant.y = n.y; }
+    } else {
+      nos.set(n.id, { ...n, nascimento: t, colunas: {}, mult: noFoco === n.id ? 1.8 : 1 });
+    }
+  }
+  for (const id of [...nos.keys()]) if (!vistos.has(id)) nos.delete(id);
+
+  const idsSess = new Set();
+  for (const d of est.sessoes || []) {
+    if (!nos.has(d.no)) continue;
+    idsSess.add(d.id);
+    const ant = sessoes.get(d.id);
+    if (ant) {
+      if (ant.coluna !== d.coluna) ant.pulso = t;
+      Object.assign(ant, d);
+    } else {
+      sessoes.set(d.id, novaSessao(d, t, !primeiraCarga));
+    }
+  }
+  for (const id of [...sessoes.keys()]) if (!idsSess.has(id)) { sessoes.delete(id); if (selecionada === id) fecharDetalhe(); }
+
+  const q = busca.trim().toLowerCase();
+  for (const s of sessoes.values()) {
+    s.alvoCor = COR[s.coluna] || COR.fechada;
+    s.hay = [s.titulo, s.nome, s.projeto, s.subprojeto, s.primeiroPrompt, s.ultimoPrompt, s.no].join(' ').toLowerCase();
+  }
+  ordemDesenho = [...sessoes.values()].sort((a, b) => ORDEM_COLUNA[b.coluna] - ORDEM_COLUNA[a.coluna]);
+  aplicarBusca(q);
+  primeiraCarga = false;
+  ultimoEstado = performance.now();
+  if (selecionada && !sessoes.has(selecionada)) fecharDetalhe();
+  atualizarContadores();
+  atualizarSeletores();
+  atualizarLista();
+  if (selecionada) atualizarDetalhe(false);
+}
+
+function aplicarBusca(q) {
+  for (const s of sessoes.values()) s.casa = !q || s.hay.includes(q);
+  for (const n of nos.values()) {
+    n.casa = !q || n.nome.toLowerCase().includes(q) || [...sessoes.values()].some(s => s.no === n.id && s.casa);
+  }
+}
+
+// ---------- geometria das sessoes ----------
+function raioNo(n) { return (17 + 6 * Math.log2(1 + (n.total || 1))) * (n.mult || 1); }
+function raioOrbita(s, n) {
+  const base = raioNo(n);
+  const m = n.mult || 1;
+  return s.aberta ? base + (20 + (s.banda % 3) * 10) * m : base + (48 + (s.banda % 4) * 9) * m;
+}
+
+// ---------- desenho ----------
+let tAnim = 0;
+function desenharFundo(t) {
+  ctx.fillStyle = '#05080f';
+  ctx.fillRect(0, 0, L, A);
+  const g = ctx.createRadialGradient(L * 0.5, A * 0.45, 0, L * 0.5, A * 0.45, Math.max(L, A) * 0.75);
+  g.addColorStop(0, 'rgba(18, 32, 60, 0.55)');
+  g.addColorStop(1, 'rgba(5, 8, 15, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, L, A);
+
+  // grade em coordenadas do mundo, some quando fica densa demais
+  let passo = 160;
+  while (passo * cam.k < 34) passo *= 2;
+  const fade = limitar((passo * cam.k - 34) / 40, 0, 1) * 0.07 + 0.025;
+  ctx.strokeStyle = 'rgba(110, 150, 220,' + fade + ')';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const [mx0, my0] = paraMundo(0, 0), [mx1, my1] = paraMundo(L, A);
+  for (let x = Math.floor(mx0 / passo) * passo; x <= mx1; x += passo) {
+    const sx = Math.round((x - cam.x) * cam.k + L / 2) + 0.5;
+    ctx.moveTo(sx, 0); ctx.lineTo(sx, A);
+  }
+  for (let y = Math.floor(my0 / passo) * passo; y <= my1; y += passo) {
+    const sy = Math.round((y - cam.y) * cam.k + A / 2) + 0.5;
+    ctx.moveTo(0, sy); ctx.lineTo(L, sy);
+  }
+  ctx.stroke();
+
+  // estrelas com paralaxe (3 camadas)
+  const par = [0.05, 0.12, 0.22];
+  for (const e of estrelas) {
+    const f = par[e.camada];
+    let sx = (e.x * L - cam.x * cam.k * f) % L; if (sx < 0) sx += L;
+    let sy = (e.y * A - cam.y * cam.k * f) % A; if (sy < 0) sy += A;
+    const cintila = escalaMovimento < 1 ? 1 : 0.75 + 0.25 * Math.sin(t * 1.3 + e.f);
+    ctx.fillStyle = 'rgba(190, 215, 255,' + (e.a * cintila) + ')';
+    ctx.fillRect(sx, sy, e.r, e.r);
+  }
+}
+
+function textoEspacado(txt, x, y, espaco) {
+  if ('letterSpacing' in ctx) {
+    ctx.letterSpacing = espaco + 'px';
+    ctx.fillText(txt, x + espaco / 2, y);
+    ctx.letterSpacing = '0px';
+  } else {
+    ctx.fillText(txt.split('').join(' '), x, y);
+  }
+}
+
+function desenharRegioes(t) {
+  for (const r of regioes) {
+    if (!r.contorno) continue;  // projeto avulso de um no so: nada de contorno de grupo
+    const cor = corDaRegiao(r.id);
+    const [sx, sy] = paraTela(r.x, r.y);
+    const R = r.raio * cam.k;
+    if (sx + R < 0 || sx - R > L || sy + R < 0 || sy - R > A) continue;
+    const g = ctx.createRadialGradient(sx, sy, R * 0.1, sx, sy, R);
+    g.addColorStop(0, rgba(cor, 0.07));
+    g.addColorStop(0.8, rgba(cor, 0.035));
+    g.addColorStop(1, rgba(cor, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(sx, sy, R, 0, 6.2832); ctx.fill();
+    ctx.setLineDash([2, 9]);
+    ctx.lineCap = 'round';
+    ctx.lineWidth = 1.6;
+    ctx.strokeStyle = rgba(cor, 0.3);
+    ctx.beginPath(); ctx.arc(sx, sy, R, 0, 6.2832); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = rgba(cor, 0.62);
+    ctx.font = '600 ' + limitar(15 + Math.log2(Math.max(cam.k, 0.1) * 4) * 3, 12, 30) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    textoEspacado(r.nome.toUpperCase(), sx, sy - R - 10, 9);
+  }
+}
+
+function corPulsante(s, t) {
+  // fator de brilho/opacidade por coluna
+  if (s.coluna === 'atencao') {
+    if (escalaMovimento < 1) return 1;
+    const v = Math.sin(t * 7 + s.fase);
+    return 0.55 + 0.45 * (v > 0 ? 1 : 0.15 + 0.85 * (v + 1));  // pisca forte
+  }
+  if (s.coluna === 'trabalhando') return escalaMovimento < 1 ? 0.9 : 0.78 + 0.22 * Math.sin(t * 3.2 + s.fase);
+  return 1;
+}
+
+function desenharNos(t, ks) {
+  ocupados.length = 0;
+  etiquetasNo.length = 0;
+  for (const n of nos.values()) {
+    const [sx, sy] = paraTela(n.x, n.y);
+    const rn = raioNo(n) * ks;
+    n.sx = sx; n.sy = sy; n.sr = rn;
+    if (sx < -300 || sx > L + 300 || sy < -300 || sy > A + 300) { n.fora = true; continue; }
+    n.fora = false;
+    const cont = { atencao: 0, trabalhando: 0, suaVez: 0 };
+    for (const s of sessoes.values()) if (s.no === n.id && cont[s.coluna] != null) cont[s.coluna]++;
+    n.cont = cont;
+    const cor = corDaRegiao(n.regiao);
+    const dim = n.casa ? 1 : 0.22;
+    ctx.globalAlpha = dim;
+
+    // rastros de orbita
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = rgba(cor, 0.07);
+    const raios = new Set();
+    for (const s of sessoes.values()) if (s.no === n.id) raios.add(Math.round(raioOrbita(s, n)));
+    ctx.beginPath();
+    for (const r of raios) { ctx.moveTo(sx + r * ks, sy); ctx.arc(sx, sy, r * ks, 0, 6.2832); }
+    ctx.stroke();
+
+    let halo = null, intens = 0;
+    if (cont.atencao) { halo = COR.atencao; intens = 0.55 + (escalaMovimento < 1 ? 0.2 : 0.3 * Math.sin(t * 5)); }
+    else if (cont.trabalhando) { halo = COR.trabalhando; intens = 0.32 + (escalaMovimento < 1 ? 0 : 0.1 * Math.sin(t * 2.4)); }
+    else if (cont.suaVez) { halo = COR.suaVez; intens = 0.2; }
+    desenharBrilho(halo || cor, sx, sy, rn * 3.4, halo ? intens : 0.2);
+
+    const g = ctx.createRadialGradient(sx - rn * 0.3, sy - rn * 0.35, rn * 0.1, sx, sy, rn);
+    g.addColorStop(0, rgba(cor, 0.5));
+    g.addColorStop(1, 'rgba(8, 14, 26, 0.95)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(sx, sy, rn, 0, 6.2832); ctx.fill();
+    ctx.lineWidth = Math.max(1.5, 2.2 * ks);
+    ctx.strokeStyle = rgba(halo || cor, halo ? 0.95 : 0.75);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = rgba(cor, 0.35);
+    ctx.beginPath(); ctx.arc(sx, sy, rn + 4 * ks + 2, 0, 6.2832); ctx.stroke();
+    if (n.id === noSel) { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(sx, sy, rn + 12 * ks + 5, 0, 6.2832); ctx.stroke(); ctx.setLineDash([]); }
+    if (hoverNo === n) { ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(sx, sy, rn + 8 * ks + 3, 0, 6.2832); ctx.stroke(); }
+
+    // anel vivo para quem tem sessao aberta: arco girando na cor do estado mais urgente
+    if (n.abertas) {
+      const corViva = halo || COR.suaVez;
+      const giro = escalaMovimento < 1 ? 0 : t * 0.9;
+      ctx.lineWidth = Math.max(2, 3 * ks);
+      ctx.strokeStyle = rgba(corViva, 0.9);
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.arc(sx, sy, rn + 7 * ks + 4, giro + i * 2.0944, giro + i * 2.0944 + 1.0); ctx.stroke();
+      }
+      ctx.lineCap = 'butt';
+    }
+    ctx.globalAlpha = 1;
+    // o corpo do no ocupa espaco: etiquetas de outros nos nao podem cobri-lo
+    const rc = rn + 3 * ks + 2;
+    ocupados.push([sx - rc, sy - rc, sx + rc, sy + rc]);
+    etiquetasNo.push({ n, dim, rn, prio: n.id === noFoco || hoverNo === n ? -1
+      : cont.atencao ? 0 : cont.trabalhando ? 1 : cont.suaVez ? 2 : 3 });
+  }
+}
+
+const ocupados = [];     // retangulos de tela ja usados neste quadro: [x0, y0, x1, y1]
+const etiquetasNo = [];
+function colide(r) {
+  for (const o of ocupados) if (r[0] < o[2] && r[2] > o[0] && r[1] < o[3] && r[3] > o[1]) return true;
+  return false;
+}
+function encurtar(txt, max) { return txt.length > max ? txt.slice(0, Math.max(3, max - 1)) + '…' : txt; }
+
+// Etiquetas dos nos por prioridade (atencao > trabalhando > sua vez > mais sessoes > alfabetica).
+// Colidiu: tenta o nome encurtado; so depois esconde. Fonte nunca abaixo de 11 px.
+let escondidas = 0;
+function desenharEtiquetasNo(ks) {
+  etiquetasNo.sort((a, b) => a.prio - b.prio || (b.n.total - a.n.total) || a.n.nome.localeCompare(b.n.nome));
+  const fonte = limitar(11 + ks * 2.2, 11, 16);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.lineJoin = 'round';
+  escondidas = 0;
+  for (const e of etiquetasNo) {
+    const { n, rn, dim } = e;
+    const forcado = e.prio === -1;
+    const yAbaixo = n.sy + rn + 10 * ks + 8;
+    const yAcima = n.sy - rn - 10 * ks - 6 - fonte * 2 - 4;
+    let y = yAbaixo;
+    ctx.font = '600 ' + fonte + 'px system-ui, sans-serif';
+    const contTxt = n.abertas + '/' + n.total;
+    let achou = null;
+    for (const max of [99, 16, 10]) {
+      const nome = encurtar(n.nome, max);
+      if (max !== 99 && nome === n.nome) continue;
+      const larg = Math.max(ctx.measureText(nome).width, 28);
+      for (const yy of [yAbaixo, yAcima]) {  // embaixo; se colidir, em cima do no
+        const r = [n.sx - larg / 2 - 3, yy - 1, n.sx + larg / 2 + 3, yy + fonte * 2 + 4];
+        if (forcado || !colide(r)) { achou = { nome, r }; y = yy; break; }
+      }
+      if (achou) break;
+    }
+    if (!achou) { escondidas++; continue; }
+    ocupados.push(achou.r);
+    ctx.globalAlpha = dim;
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(5,8,15,0.9)';
+    ctx.strokeText(achou.nome, n.sx, y);
+    ctx.fillStyle = '#dbe6f7';
+    ctx.fillText(achou.nome, n.sx, y);
+    ctx.font = (fonte - 1) + 'px ui-monospace, Menlo, monospace';
+    ctx.strokeText(contTxt, n.sx, y + fonte + 2);
+    ctx.fillStyle = n.abertas ? '#9fd9ff' : '#6d7d96';
+    ctx.fillText(contTxt, n.sx, y + fonte + 2);
+    ctx.globalAlpha = 1;
+  }
+  etiquetasNo.length = 0;
+}
+
+function posicaoSessao(s, n, ks, dt) {
+  const aceleracao = s.coluna === 'trabalhando' ? 2.4 : (s.aberta ? 1 : 0.55);
+  s.ang += s.dir * s.vel * aceleracao * dt * escalaMovimento;
+  const r = raioOrbita(s, n) * ks;
+  s.sx = n.sx + Math.cos(s.ang) * r;
+  s.sy = n.sy + Math.sin(s.ang) * r;
+  s.r_orb = r;
+}
+
+function desenharSessoes(t, dt, ks) {
+  const agoraS = agora();
+  const lerpCor = 1 - Math.exp(-dt * 4);
+  const rotulos = [];
+  for (const s of ordemDesenho) {
+    const n = nos.get(s.no);
+    if (!n || n.fora) { s.visivel = false; continue; }
+    // transicao suave de cor e de "vida"
+    for (let i = 0; i < 3; i++) s.cor[i] = lerp(s.cor[i], s.alvoCor[i], lerpCor);
+    s.vivacidade = lerp(s.vivacidade, s.aberta ? 1 : 0, lerpCor);
+    posicaoSessao(s, n, ks, dt);
+    s.visivel = true;
+
+    const idade = limitar((agoraS - (s.ultimaAtividade || 0)) / (JANELA_DIAS * 86400), 0, 1);
+    let alfa = s.aberta ? 1 : 0.06 + 0.5 * Math.pow(1 - idade, 1.3);
+    alfa = lerp(alfa, 1, s.vivacidade);
+    if (!s.casa) alfa *= 0.12;
+    // efeito de surgimento
+    let surgir = 1;
+    if (s.animarNascimento) surgir = limitar((agoraS - s.nascimento) / 1.4, 0, 1);
+    else if (!primeiraCarga) surgir = 1;
+    const ease = 1 - Math.pow(1 - surgir, 3);
+    const pulsante = corPulsante(s, t);
+    const raioPonto = (s.aberta ? 4.6 : 3.3) * Math.max(0.85, ks) * (0.4 + 0.6 * ease);
+    s.sr = raioPonto;
+    s.alfa = alfa;
+
+    // rastro curto para quem trabalha
+    if (s.coluna === 'trabalhando' && s.r_orb > 0 && escalaMovimento >= 1) {
+      const passoAng = s.dir * 0.09;
+      for (let i = 1; i <= 9; i++) {
+        const a = s.ang - passoAng * i;
+        ctx.globalAlpha = alfa * (0.5 - i * 0.052);
+        ctx.fillStyle = rgba(s.cor, 1);
+        ctx.beginPath();
+        ctx.arc(n.sx + Math.cos(a) * s.r_orb, n.sy + Math.sin(a) * s.r_orb, raioPonto * (1 - i * 0.08), 0, 6.2832);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // halo
+    let raioHalo = raioPonto * 3.2, forcaHalo = 0;
+    if (s.coluna === 'atencao') { raioHalo = raioPonto * (4.2 + (escalaMovimento < 1 ? 0 : 1.4 * Math.sin(t * 7 + s.fase))); forcaHalo = 0.95 * pulsante; }
+    else if (s.coluna === 'trabalhando') { forcaHalo = 0.55 * pulsante; }
+    else if (s.coluna === 'suaVez') { forcaHalo = s.nova ? 0.95 : 0.36; raioHalo = raioPonto * (s.nova ? 4.6 : 3); }
+    else forcaHalo = 0.12 * s.vivacidade;
+    desenharBrilho(s.alvoCor, s.sx, s.sy, raioHalo, forcaHalo * alfa * ease);
+
+    // ponto
+    const raioDesenho = s.coluna === 'trabalhando' && escalaMovimento >= 1 ? raioPonto * (1 + 0.16 * Math.sin(t * 3.2 + s.fase)) : raioPonto;
+    ctx.globalAlpha = alfa * ease * (s.coluna === 'atencao' ? pulsante : 1);
+    ctx.fillStyle = rgba(s.cor, 1);
+    ctx.beginPath(); ctx.arc(s.sx, s.sy, raioDesenho, 0, 6.2832); ctx.fill();
+    if (s.aberta) {
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.beginPath(); ctx.arc(s.sx - raioDesenho * 0.25, s.sy - raioDesenho * 0.25, raioDesenho * 0.35, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // anel do surgimento e da mudanca de estado
+    if (s.animarNascimento && surgir < 1) {
+      ctx.strokeStyle = rgba(s.alvoCor, (1 - surgir) * 0.9);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(s.sx, s.sy, raioPonto + 4 + surgir * 34, 0, 6.2832); ctx.stroke();
+    }
+    const dtPulso = agoraS - s.pulso;
+    if (s.pulso && dtPulso < 1.6 && !(s.animarNascimento && surgir < 1) && escalaMovimento >= 1) {
+      ctx.strokeStyle = rgba(s.alvoCor, (1 - dtPulso / 1.6) * 0.8);
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(s.sx, s.sy, raioPonto + 3 + dtPulso * 20, 0, 6.2832); ctx.stroke();
+    }
+
+    // subagentes: satelites rapidos
+    const coresSat = coresSatelites(s);
+    const sat = Math.min(coresSat.length, 6);
+    for (let i = 0; i < sat; i++) {
+      const a = t * 4.2 * (escalaMovimento < 1 ? 0.3 : 1) + (i * 6.2832) / sat;
+      const rs = raioPonto + 5.5 + (i % 2) * 2.5;
+      ctx.fillStyle = rgba(coresSat[i], 0.95);
+      ctx.beginPath(); ctx.arc(s.sx + Math.cos(a) * rs, s.sy + Math.sin(a) * rs, 1.7, 0, 6.2832); ctx.fill();
+    }
+
+    if (busca && s.casa) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(s.sx, s.sy, raioPonto + 5, 0, 6.2832); ctx.stroke();
+    }
+    if (s.id === selecionada) {
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.arc(s.sx, s.sy, raioPonto + 8 + (escalaMovimento < 1 ? 0 : Math.sin(t * 3)), 0, 6.2832); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // rotulos: abertas (se houver espaco) e hover/selecao
+    const destaque = s === hover || s.id === selecionada;
+    const recente = agoraS - (s.ultimaAtividade || 0) < 2 * 86400;
+    const mostrar = destaque || (s.casa && (
+      (s.aberta && (cam.k >= 0.42 || s.coluna === 'atencao' || s.coluna === 'trabalhando' || busca))
+      || (noFoco && (s.aberta || recente))));
+    if (mostrar && ease > 0.6) rotulos.push(s);
+  }
+
+  // rotulos por cima de todos os pontos
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  const fonte = limitar(10.5 + ks * 1.4, 10.5, 13);
+  rotulos.sort((a, b) => ORDEM_COLUNA[a.coluna] - ORDEM_COLUNA[b.coluna]);
+  const margemEsq = document.getElementById('lista').classList.contains('recolhida') ? 8 : 326;
+  const margemDir = document.getElementById('detalhe').classList.contains('aberto') ? 376 : 8;
+  for (const s of rotulos) {
+    if (agoraS - s.rotuloEm >= 1 || !s.rotulo) { s.rotulo = tituloCurto(s, 30) + '  ·  ' + tempoDe(s, agoraS); s.rotuloEm = agoraS; }
+    const n = nos.get(s.no);
+    // para fora da orbita: segue a direcao centro do no -> ponto, assim nao cai em cima do nome do no
+    const cx = Math.cos(s.ang), cy = Math.sin(s.ang);
+    const dist = s.sr + 9;
+    const ancX = s.sx + cx * dist, ancY = s.sy + cy * dist;
+    const dir = cx >= 0 ? 1 : -1;
+    ctx.font = (s.coluna === 'atencao' || s === hover ? '600 ' : '') + fonte + 'px system-ui, sans-serif';
+    const larg = ctx.measureText(s.rotulo).width;
+    const altP = fonte + 8;
+    // a pilula fica dentro da area visivel (fora da lista, do detalhe, da barra e da legenda)
+    const x0 = limitar(dir > 0 ? ancX : ancX - larg - 14, margemEsq, Math.max(margemEsq, L - margemDir - larg - 14));
+    const y0 = limitar(ancY - altP / 2 + cy * altP * 0.5, 68, A - 52 - docaPx() - altP);
+    const retang = [x0, y0, x0 + larg + 14, y0 + altP];
+    if (!(s === hover || s.id === selecionada) && colide(retang)) continue;
+    ocupados.push(retang);
+    ctx.globalAlpha = s.aberta ? 1 : 0.95;
+    ctx.fillStyle = 'rgba(6, 11, 22, 0.82)';
+    ctx.strokeStyle = rgba(s.alvoCor, 0.55);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x0, y0, larg + 14, altP, altP / 2); else ctx.rect(x0, y0, larg + 14, altP);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = s.coluna === 'atencao' ? '#ffc2c8' : s.coluna === 'trabalhando' ? '#ffdf9e' : s.coluna === 'suaVez' ? '#c2f5da' : '#b4bfd1';
+    ctx.textAlign = 'left';
+    ctx.fillText(s.rotulo, x0 + 7, y0 + altP / 2 + 0.5);
+    ctx.globalAlpha = 1;
+  }
+}
+
+let ultimoQuadro = performance.now();
+let acumFps = 0, quadros = 0;
+function quadro(agoraMs) {
+  const dt = Math.min(0.05, (agoraMs - ultimoQuadro) / 1000);
+  ultimoQuadro = agoraMs;
+  tAnim += dt;
+  const t = tAnim;
+
+  // camera suave
+  const f = 1 - Math.exp(-dt * 9);
+  if (seguindo) {
+    const s = sessoes.get(seguindo);
+    if (s && s.visivel) { const [wx, wy] = paraMundo(s.sx, s.sy); alvo.x = wx; alvo.y = wy; }
+  }
+  cam.x = lerp(cam.x, alvo.x, f); cam.y = lerp(cam.y, alvo.y, f);
+  cam.k = Math.exp(lerp(Math.log(cam.k), Math.log(alvo.k), f));
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  desenharFundo(t);
+  desenharRegioes(t);
+  const ks = escalaVisual();
+  desenharNos(t, ks);
+  desenharSessoes(t, dt, ks);
+  desenharEtiquetasNo(ks);
+
+  requestAnimationFrame(quadro);
+}
+
+// ---------- interacao ----------
+function aoRedimensionar() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  L = window.innerWidth; A = window.innerHeight;
+  canvas.width = Math.round(L * dpr); canvas.height = Math.round(A * dpr);
+}
+window.addEventListener('resize', aoRedimensionar);
+
+function sessaoEm(px, py) {
+  let melhor = null, dm = Infinity;
+  for (const s of sessoes.values()) {
+    if (!s.visivel || !s.casa) continue;
+    const d = Math.hypot(s.sx - px, s.sy - py);
+    const lim = Math.max(9, s.sr + 5);
+    if (d <= lim && d < dm) { dm = d; melhor = s; }
+  }
+  return melhor;
+}
+function noEm(px, py) {
+  for (const n of nos.values()) if (!n.fora && Math.hypot(n.sx - px, n.sy - py) <= n.sr + 4) return n;
+  return null;
+}
+function regiaoEm(px, py) {
+  const [wx, wy] = paraMundo(px, py);
+  let melhor = null, dm = Infinity;
+  for (const r of regioes) {
+    const d = Math.hypot(wx - r.x, wy - r.y);
+    if (d <= r.raio && d < dm) { dm = d; melhor = r; }
+  }
+  return melhor;
+}
+function ptr(e) { const r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+
+canvas.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  canvas.focus({ preventScroll: true });
+  const [px, py] = ptr(e);
+  const s = sessaoEm(px, py), n = s ? null : noEm(px, py);
+  arrasto = { tipo: n ? 'no' : 'fundo', no: n, s, x0: px, y0: py, ux: px, uy: py, moveu: false };
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* evento sintetico ou ponteiro inativo */ }
+});
+canvas.addEventListener('pointermove', e => {
+  const [px, py] = ptr(e);
+  if (arrasto) {
+    const dx = px - arrasto.ux, dy = py - arrasto.uy;
+    if (!arrasto.moveu && Math.hypot(px - arrasto.x0, py - arrasto.y0) > 4) arrasto.moveu = true;
+    if (arrasto.moveu && !arrasto.s) {
+      if (arrasto.tipo === 'no') {
+        arrasto.no.x += dx / cam.k; arrasto.no.y += dy / cam.k;
+      } else {
+        cam.x -= dx / cam.k; cam.y -= dy / cam.k; alvo.x = cam.x; alvo.y = cam.y; alvo.k = cam.k;
+        seguindo = null;
+      }
+    }
+    arrasto.ux = px; arrasto.uy = py;
+    esconderDica();
+    return;
+  }
+  hover = sessaoEm(px, py);
+  hoverNo = hover ? null : noEm(px, py);
+  canvas.style.cursor = hover || hoverNo ? 'pointer' : 'grab';
+  mostrarDica(e, hover, hoverNo);
+});
+canvas.addEventListener('pointerup', async e => {
+  const a = arrasto; arrasto = null;
+  if (!a) return;
+  if (a.tipo === 'no' && a.moveu) {
+    try {
+      const r = await fetch('/api/posicao', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': TOKEN },
+        body: JSON.stringify({ no: a.no.id, x: a.no.x, y: a.no.y }),
+      });
+      if (!r.ok) throw new Error(r.status);
+    } catch (_) { /* a proxima atualizacao devolve a posicao salva */ }
+  } else if (!a.moveu) {
+    if (a.s) selecionar(a.s.id);
+    else if (a.no) noSel = a.no.id;
+    else { noSel = null; fecharDetalhe(); }
+  }
+});
+canvas.addEventListener('pointerleave', () => { if (!arrasto) { hover = null; hoverNo = null; esconderDica(); } });
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const [px, py] = ptr(e);
+  const fator = Math.exp(-limitar(e.deltaY, -300, 300) * 0.0016);
+  const k = limitar(alvo.k * fator, 0.06, 6);
+  const wx = (px - L / 2) / alvo.k + alvo.x, wy = (py - A / 2) / alvo.k + alvo.y;
+  alvo.k = k; alvo.x = wx - (px - L / 2) / k; alvo.y = wy - (py - A / 2) / k;
+  seguindo = null;
+}, { passive: false });
+canvas.addEventListener('dblclick', e => {
+  const [px, py] = ptr(e);
+  if (sessaoEm(px, py)) return;
+  const r = regiaoEm(px, py);
+  if (r) enquadrar([r]);
+});
+
+document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('#doca, dialog')) return;  // digitando no terminal ou no dialogo
+  const emCampo = e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement;
+  if (e.key === 'Escape') { busca = ''; document.getElementById('busca').value = ''; aplicarBusca(''); fecharDetalhe(); document.activeElement.blur(); return; }
+  if (emCampo) return;
+  if (e.key === '0') enquadrar();
+  else if (!e.ctrlKey && !e.metaKey && e.key >= '1' && e.key <= '9' && +e.key - 2 < grandes.length) definirFoco([null, ...grandes][+e.key - 1]);
+  else if (e.key === '/') { e.preventDefault(); document.getElementById('busca').focus(); }
+  else if (e.key === '+' || e.key === '=') alvo.k = limitar(alvo.k * 1.25, 0.06, 6);
+  else if (e.key === '-') alvo.k = limitar(alvo.k / 1.25, 0.06, 6);
+});
+document.getElementById('enquadrar').addEventListener('click', () => enquadrar());
+
+const campoBusca = document.getElementById('busca');
+campoBusca.addEventListener('input', () => { busca = campoBusca.value.trim().toLowerCase(); aplicarBusca(busca); atualizarLista(true); });
+campoBusca.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const achadas = [...sessoes.values()].filter(s => s.casa).sort((a, b) => ORDEM_COLUNA[a.coluna] - ORDEM_COLUNA[b.coluna]);
+  if (busca && achadas.length) { selecionar(achadas[0].id); centralizar(achadas[0]); campoBusca.blur(); }
+});
+
+// ---------- foco (recorte por regiao/projeto, guardado na URL) ----------
+function sincronizarFoco(reescrever) {
+  const p = new URLSearchParams(location.search);
+  const v = valorFoco(foco);
+  if (v) p.set('foco', v); else p.delete('foco');
+  const q = p.toString();
+  history.replaceState(null, '', location.pathname + (q ? '?' + q.replace(/%2F/gi, '/') : ''));
+  document.querySelectorAll('#seg-foco .bt').forEach(b => {
+    const ativo = b.dataset.foco === (foco.regiao || '');
+    b.classList.toggle('ativo', ativo);
+    b.setAttribute('aria-pressed', ativo);
+  });
+  atualizarTitulo();
+}
+function atualizarTitulo() {
+  const aten = [...sessoes.values()].filter(s => s.coluna === 'atencao').length;
+  document.title = (aten ? '(' + aten + ') ' : '') + tituloFoco();
+}
+function definirFoco(regiao, no) {
+  noSel = null;
+  foco = { regiao: regiao || null, no: regiao ? no || null : null };
+  sincronizarFoco();
+  fecharDetalhe();
+  if (dados) { primeiraCarga = true; aplicarEstado(dados); }  // sem efeito de surgimento em tudo de uma vez
+  enquadrar();
+}
+function atualizarSeletores() {
+  // projetos avulsos: com sessao aberta primeiro, com contador abertas/total
+  const proj = document.getElementById('sel-proj');
+  const por = new Map();
+  for (const n of todosNos) {
+    if (grandes.includes(n.regiao)) continue;
+    const r = por.get(n.regiao) || { id: n.regiao, abertas: 0, total: 0 };
+    r.abertas += n.abertas; r.total += n.total; por.set(n.regiao, r);
+  }
+  const lista = [...por.values()].sort((a, b) => (b.abertas > 0) - (a.abertas > 0) || a.id.localeCompare(b.id));
+  const ass = foco.regiao + '|' + lista.map(r => r.id + r.abertas + '/' + r.total).join(',');
+  if (proj.dataset.ass !== ass) {
+    proj.dataset.ass = ass;
+    proj.textContent = '';
+    const o0 = el('option', null, 'Projetos (' + lista.length + ')'); o0.value = '';
+    proj.append(o0);
+    for (const r of lista) { const o = el('option', null, r.id + '  (' + r.abertas + '/' + r.total + ')'); o.value = r.id; proj.append(o); }
+    proj.value = por.has(foco.regiao) ? foco.regiao : '';
+  }
+  proj.classList.toggle('ativo', por.has(foco.regiao));
+  proj.hidden = !lista.length;
+
+  const sel = document.getElementById('sel-no');
+  const nosR = todosNos.filter(n => n.regiao === foco.regiao).sort((a, b) => a.nome.localeCompare(b.nome));
+  sel.hidden = !foco.regiao || nosR.length < 2;
+  if (sel.hidden) { sel.dataset.ass = ''; return; }
+  const assinatura = foco.regiao + '|' + foco.no + '|' + nosR.map(n => n.id + n.abertas + '/' + n.total).join(',');
+  if (sel.dataset.ass === assinatura) return;
+  sel.dataset.ass = assinatura;
+  sel.textContent = '';
+  const todos = el('option', null, 'todos os projetos'); todos.value = '';
+  sel.append(todos);
+  for (const n of nosR) { const o = el('option', null, n.nome + ' (' + n.abertas + '/' + n.total + ')'); o.value = n.id; sel.append(o); }
+  sel.value = foco.no || '';
+}
+document.getElementById('sel-proj').addEventListener('change', e => definirFoco(e.target.value || null));
+document.querySelectorAll('#seg-foco .bt').forEach(b => b.addEventListener('click', () => definirFoco(b.dataset.foco)));
+document.getElementById('sel-no').addEventListener('change', e => definirFoco(foco.regiao, e.target.value || null));
+document.getElementById('nova-janela').addEventListener('click', () => {
+  window.open(location.pathname + location.search, '_blank', 'popup=yes,width=1500,height=900');
+});
+
+// ---------- aviso rapido e chamadas de escrita ----------
+let toastTimer = null;
+function aviso(texto, erro) {
+  const t = document.getElementById('toast');
+  t.textContent = texto; t.className = erro ? 'erro' : ''; t.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; }, erro ? 7000 : 4000);
+}
+async function postar(rota, corpo) {
+  try {
+    const r = await fetch(rota, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Token': TOKEN }, body: JSON.stringify(corpo) });
+    let dados = {};
+    try { dados = await r.json(); } catch (_) { /* corpo vazio */ }
+    return { ok: r.ok, status: r.status, dados };
+  } catch (e) { return { ok: false, status: 0, dados: { erro: 'sem conexão com o servidor' } }; }
+}
+
+// ---------- doca de terminais (xterm.js servido localmente) ----------
+const terminais = new Map();  // jobId -> { aba, area, term, fit, ws, nome }
+const doca = document.getElementById('doca');
+let ativoJob = null;
+const temaTerminal = {
+  background: '#070b14', foreground: '#d7e2f3', cursor: '#5ad1ff', cursorAccent: '#070b14', selectionBackground: 'rgba(90,209,255,0.28)',
+  black: '#1a2336', red: '#ff5c6c', green: '#3ddc84', yellow: '#ffb020', blue: '#5a9bff', magenta: '#b88cff', cyan: '#5ad1ff', white: '#d7e2f3',
+  brightBlack: '#5b6a86', brightRed: '#ff8591', brightGreen: '#74efab', brightYellow: '#ffd070', brightBlue: '#8cb9ff', brightMagenta: '#d0b0ff', brightCyan: '#9ae4ff', brightWhite: '#ffffff',
+};
+function definirAlturaDoca(px) {
+  px = limitar(px, 140, window.innerHeight - 120);
+  doca.style.height = px + 'px';
+  document.documentElement.style.setProperty('--doca-px', px + 'px');
+  try { localStorage.setItem('mapa.docaPx', String(px)); } catch (_) { /* opcional */ }
+  ajustarTerminais();
+}
+function ajustarTerminais() {
+  for (const t of terminais.values()) ajustar(t);
+}
+function ajustar(t) {
+  if (!t.term || !t.area.classList.contains('ativa')) return;
+  try {
+    t.fit.fit();
+    if (t.ws.readyState === 1) t.ws.send(JSON.stringify({ tipo: 'resize', cols: t.term.cols, linhas: t.term.rows }));
+  } catch (_) { /* area ainda sem tamanho */ }
+}
+function mostrarDoca(sim) {
+  doca.hidden = !sim;
+  document.body.classList.toggle('doca-aberta', sim);
+  if (sim) {
+    let px = Math.round(window.innerHeight * 0.62);  // a conversa precisa de altura; o usuario ajusta na borda
+    try { px = parseInt(localStorage.getItem('mapa.docaPx')) || px; } catch (_) { /* opcional */ }
+    if (!document.documentElement.style.getPropertyValue('--doca-px') || document.documentElement.style.getPropertyValue('--doca-px') === '0px') definirAlturaDoca(px);
+  } else {
+    document.documentElement.style.setProperty('--doca-px', '0px');
+    document.body.classList.remove('max-term');
+  }
+}
+// ---------- colunas da doca (grupos de abas, como os grupos de editor do VSCode) ----------
+// Mover uma aba reaproveita o MESMO elemento DOM (appendChild): o xterm e o WebSocket nao sao recriados.
+// <puras> funcoes sem DOM (testadas por test_colunas.py via node)
+const LARG_MIN_COLUNA = 320, MAX_COLUNAS = 4;
+function larguraAposArrasto(esq, dir, dx, min) {  // divisoria entre duas colunas: soma preservada, minimo respeitado
+  const total = esq + dir;
+  if (total < 2 * min) return [total / 2, total / 2];
+  const e = Math.min(Math.max(esq + dx, min), total - min);
+  return [e, total - e];
+}
+function indiceDeSolta(meios, x) { let i = 0; while (i < meios.length && x > meios[i]) i++; return i; }  // meios = centros das abas (sem a arrastada)
+function ladoDaSolta(x, esq, larg) { return x < esq + larg / 2 ? 'esq' : 'dir'; }
+function normalizarLarguras(l, n) { return Array.isArray(l) && l.length === n && l.every(v => v > 0) ? l : Array(n).fill(1); }
+// </puras>
+const colunas = [];   // { el, barra, abasEl, corpo, jobs: [], ativa: job, larg: px }
+let colAtiva = null;
+let arrastando = null;  // aba (t) em arrasto
+let restaurando = false;
+const TIPO_ABA = 'application/x-mapa-aba';
+const CHAVE_LAYOUT = 'mapa.colunas';
+const contColunas = document.getElementById('doca-colunas');
+const acoesDoca = document.getElementById('doca-acoes');
+const marcaSolta = el('div', 'marca-solta'), zonaSolta = el('div', 'zona-solta');
+document.body.append(marcaSolta, zonaSolta);
+const ICONE_DIVIDIR = '<svg width="14" height="12" viewBox="0 0 14 12" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="1" width="12" height="10" rx="1.5"/><line x1="7" y1="1" x2="7" y2="11"/></svg>';
+
+function esconderMarcas() { marcaSolta.style.display = 'none'; zonaSolta.style.display = 'none'; }
+function medirLarguras() { for (const c of colunas) if (c.el.offsetWidth > 0) c.larg = c.el.offsetWidth; }
+function aplicarLarguras() { for (const c of colunas) c.el.style.flex = c.larg + ' 1 0px'; }
+function reajustarColunas() {
+  ajustarTerminais();
+  for (const c of colunas) { const t = terminais.get(c.ativa); if (t) rolarSeNoFim(t); }
+}
+function agendarReajuste() { requestAnimationFrame(() => { reajustarColunas(); setTimeout(reajustarColunas, 80); }); }
+
+function salvarLayout() {
+  if (restaurando) return;
+  try {
+    const grupos = colunas.map(c => ({ c, abas: c.jobs.filter(j => !/^(pendente|ver):/.test(j)).map(j => ({ job: j, nome: terminais.get(j).nome })) })).filter(g => g.abas.length);
+    if (!grupos.length) { sessionStorage.removeItem(CHAVE_LAYOUT); return; }
+    const i = grupos.findIndex(g => g.c === colAtiva);
+    sessionStorage.setItem(CHAVE_LAYOUT, JSON.stringify({ ativa: Math.max(i, 0),
+      cols: grupos.map(g => ({ abas: g.abas, ativa: g.c.ativa, larg: Math.round(g.c.larg) })) }));
+  } catch (_) { /* opcional */ }
+}
+
+function reconstruirDivisores() {
+  for (const d of contColunas.querySelectorAll(':scope > .divisor')) d.remove();
+  colunas.forEach((c, i) => {
+    if (i === colunas.length - 1) return;
+    const d = el('div', 'divisor');
+    d.setAttribute('role', 'separator'); d.setAttribute('aria-orientation', 'vertical'); d.title = 'Arraste para ajustar a largura';
+    ligarDivisor(d, c, colunas[i + 1]);
+    c.el.after(d);
+  });
+  contColunas.classList.toggle('multi', colunas.length > 1);
+  const ultima = colunas[colunas.length - 1];
+  if (ultima) ultima.barra.append(acoesDoca);  // maximizar/recolher valem para a doca toda: ficam na ultima barra
+}
+function ligarDivisor(d, esq, dir) {
+  d.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    d.setPointerCapture(e.pointerId);
+    medirLarguras();
+    const x0 = e.clientX, e0 = esq.el.offsetWidth, d0 = dir.el.offsetWidth;
+    d.classList.add('arrastando');
+    const mover = ev => { [esq.larg, dir.larg] = larguraAposArrasto(e0, d0, ev.clientX - x0, LARG_MIN_COLUNA); aplicarLarguras(); };
+    const fim = () => {
+      d.classList.remove('arrastando');
+      d.removeEventListener('pointermove', mover); d.removeEventListener('pointerup', fim); d.removeEventListener('pointercancel', fim);
+      salvarLayout(); agendarReajuste();
+    };
+    d.addEventListener('pointermove', mover); d.addEventListener('pointerup', fim); d.addEventListener('pointercancel', fim);
+  });
+}
+
+function definirColunaAtiva(c) {
+  if (!c) return;
+  const mudou = colAtiva !== c;
+  colAtiva = c;
+  ativoJob = c.ativa;
+  for (const x of colunas) x.el.classList.toggle('col-ativa', x === c);
+  if (mudou) salvarLayout();
+}
+function mostrarNaColuna(c, job) {
+  c.ativa = job;
+  for (const id of c.jobs) {
+    const t = terminais.get(id);
+    if (!t) continue;
+    const ativa = id === job;
+    t.aba.classList.toggle('ativa', ativa);
+    t.aba.setAttribute('aria-selected', ativa);
+    t.area.classList.toggle('ativa', ativa);
+  }
+  if (colAtiva === c) ativoJob = job;
+  const t = terminais.get(job);
+  if (t) requestAnimationFrame(() => { ajustar(t); if (t.conv) { rolarSeNoFim(t); puxarConversa(t); } });
+}
+function criarColuna(ref, lado) {
+  medirLarguras();
+  const c = { jobs: [], ativa: null, larg: 1 };
+  c.el = el('div', 'coluna');
+  c.barra = el('div', 'col-barra');
+  c.abasEl = el('div', 'col-abas'); c.abasEl.setAttribute('role', 'tablist');
+  const dividir = el('button', 'bt col-dividir'); dividir.innerHTML = ICONE_DIVIDIR;
+  dividir.title = 'Dividir: mover esta aba para uma nova coluna à direita (Ctrl+\\)'; dividir.setAttribute('aria-label', 'Dividir em nova coluna');
+  dividir.addEventListener('click', () => dividirAba(terminais.get(c.ativa)));
+  c.barra.append(c.abasEl, dividir);
+  c.corpo = el('div', 'col-corpo');
+  c.el.append(c.barra, c.corpo);
+  const i = ref ? colunas.indexOf(ref) + (lado === 'esq' ? 0 : 1) : colunas.length;
+  if (ref) { ref.larg = c.larg = Math.max(ref.larg / 2, LARG_MIN_COLUNA / 2); }
+  colunas.splice(i, 0, c);
+  contColunas.insertBefore(c.el, colunas[i + 1] ? colunas[i + 1].el : null);
+  c.el.addEventListener('pointerdown', () => definirColunaAtiva(c), true);
+  c.el.addEventListener('focusin', () => definirColunaAtiva(c));
+  ligarSoltaNaBarra(c);
+  ligarSoltaNoCorpo(c);
+  aplicarLarguras();
+  reconstruirDivisores();
+  return c;
+}
+function removerColuna(c) {
+  const i = colunas.indexOf(c);
+  if (i < 0) return;
+  colunas.splice(i, 1);
+  c.el.remove();
+  if (colAtiva === c) { colAtiva = null; if (colunas.length) definirColunaAtiva(colunas[Math.min(i, colunas.length - 1)]); }
+  reconstruirDivisores();
+  agendarReajuste();
+}
+
+function moverAba(t, destino, indice) {
+  const origem = t.col;
+  const rolagem = t.conv && t.conv.scroller ? t.conv.scroller.scrollTop : null;
+  const iOrigem = origem.jobs.indexOf(t.job);
+  origem.jobs.splice(iOrigem, 1);
+  destino.jobs.splice(Math.min(Math.max(indice, 0), destino.jobs.length), 0, t.job);
+  t.col = destino;
+  for (const id of destino.jobs) destino.abasEl.append(terminais.get(id).aba);  // so reordena as abas (a barra)
+  if (origem !== destino) destino.corpo.append(t.area);  // o mesmo elemento muda de lugar: xterm e WebSocket intactos
+  if (!origem.jobs.length) removerColuna(origem);
+  else if (origem !== destino && origem.ativa === t.job) mostrarNaColuna(origem, origem.jobs[Math.min(iOrigem, origem.jobs.length - 1)]);
+  mostrarNaColuna(destino, t.job);
+  ativarAba(t.job);
+  if (rolagem != null) t.conv.scroller.scrollTop = rolagem;
+  reconstruirDivisores();
+  salvarLayout();
+  agendarReajuste();
+}
+function moverParaNovaColuna(t, ref, lado) {
+  const origem = t.col;
+  if (origem === ref && origem.jobs.length === 1) return;  // coluna so com esta aba: nada muda
+  if (colunas.length >= MAX_COLUNAS && origem.jobs.length > 1) { aviso('No máximo ' + MAX_COLUNAS + ' colunas.', true); return; }
+  moverAba(t, criarColuna(ref, lado), 0);
+}
+function dividirAba(t) {
+  if (!t) return;
+  if (t.col.jobs.length < 2) { aviso('Só há uma aba nesta coluna: abra outra sessão ou arraste uma aba para o lado.'); return; }
+  moverParaNovaColuna(t, t.col, 'dir');
+}
+
+// ---- arrastar e soltar abas ----
+function abaDeTipo(ev) { return !!arrastando && ev.dataTransfer && [...ev.dataTransfer.types].includes(TIPO_ABA); }
+function abasSemArrastada(c) { return c.jobs.map(j => terminais.get(j)).filter(t => t && t !== arrastando).map(t => t.aba); }
+function indiceDaSoltaNaBarra(c, x) {
+  return indiceDeSolta(abasSemArrastada(c).map(a => { const r = a.getBoundingClientRect(); return r.left + r.width / 2; }), x);
+}
+function ligarSoltaNaBarra(c) {
+  c.barra.addEventListener('dragover', ev => {
+    if (!abaDeTipo(ev)) return;
+    ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
+    zonaSolta.style.display = 'none';
+    const outras = abasSemArrastada(c), i = indiceDaSoltaNaBarra(c, ev.clientX);
+    const rb = c.abasEl.getBoundingClientRect();
+    const x = !outras.length ? rb.left + 2 : i < outras.length ? outras[i].getBoundingClientRect().left - 3 : outras[outras.length - 1].getBoundingClientRect().right + 1;
+    Object.assign(marcaSolta.style, { display: 'block', left: x + 'px', top: rb.top + 2 + 'px', height: rb.height - 4 + 'px' });
+  });
+  c.barra.addEventListener('dragleave', ev => { if (!c.barra.contains(ev.relatedTarget)) esconderMarcas(); });
+  c.barra.addEventListener('drop', ev => {
+    if (!abaDeTipo(ev)) return;
+    ev.preventDefault();
+    const t = arrastando, i = indiceDaSoltaNaBarra(c, ev.clientX);
+    esconderMarcas();
+    moverAba(t, c, i);
+  });
+}
+function ligarSoltaNoCorpo(c) {
+  const permitido = () => !(c === arrastando.col && c.jobs.length === 1) && !(colunas.length >= MAX_COLUNAS && arrastando.col.jobs.length > 1);
+  c.corpo.addEventListener('dragover', ev => {
+    if (!abaDeTipo(ev)) return;
+    marcaSolta.style.display = 'none';
+    if (!permitido()) { zonaSolta.style.display = 'none'; ev.dataTransfer.dropEffect = 'none'; if (c === arrastando.col && c.jobs.length === 1) return; ev.preventDefault(); return; }
+    ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
+    const r = c.corpo.getBoundingClientRect();
+    const lado = ladoDaSolta(ev.clientX, r.left, r.width);
+    Object.assign(zonaSolta.style, { display: 'block', top: r.top + 'px', height: r.height + 'px', width: r.width / 2 + 'px', left: (lado === 'esq' ? r.left : r.left + r.width / 2) + 'px' });
+  });
+  c.corpo.addEventListener('dragleave', ev => { if (!c.corpo.contains(ev.relatedTarget)) esconderMarcas(); });
+  c.corpo.addEventListener('drop', ev => {
+    if (!abaDeTipo(ev)) return;
+    ev.preventDefault();
+    const r = c.corpo.getBoundingClientRect();
+    const lado = ladoDaSolta(ev.clientX, r.left, r.width), t = arrastando;
+    esconderMarcas();
+    moverParaNovaColuna(t, c, lado);
+  });
+}
+
+// Ctrl+\ divide; Ctrl+1..4 focam a coluna (ignorados com o foco no xterm: la o Ctrl+\ e o SIGQUIT do terminal)
+document.addEventListener('keydown', e => {
+  if (!e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || doca.hidden || !colunas.length) return;
+  if (e.target.closest && e.target.closest('.xterm, dialog')) return;
+  if (e.key === '\\' || e.code === 'Backslash') {
+    e.preventDefault(); e.stopPropagation();
+    dividirAba(terminais.get(ativoJob));
+  } else if (e.key >= '1' && e.key <= '4') {
+    const c = colunas[+e.key - 1];
+    if (!c) return;
+    e.preventDefault(); e.stopPropagation();
+    if (c.ativa) ativarAba(c.ativa); else definirColunaAtiva(c);
+    const t = terminais.get(c.ativa);
+    if (t && t.composer) requestAnimationFrame(() => t.composer.querySelector('textarea').focus());
+  }
+}, true);
+
+let layoutRestaurado = false;
+function restaurarLayout() {  // uma vez, apos o primeiro estado (so reabre sessoes que ainda existem)
+  if (layoutRestaurado) return;
+  layoutRestaurado = true;
+  if (!window.Terminal || !window.FitAddon) return;
+  let salvo = null;
+  try { salvo = JSON.parse(sessionStorage.getItem(CHAVE_LAYOUT) || 'null'); } catch (_) { return; }
+  if (!salvo || !Array.isArray(salvo.cols)) return;
+  const vivos = new Set([...sessoes.values()].map(s => s.jobId).filter(Boolean));
+  restaurando = true;
+  const feitas = [];
+  for (const sc of salvo.cols.slice(0, MAX_COLUNAS)) {
+    const abas = (sc && Array.isArray(sc.abas) ? sc.abas : []).filter(a => a && typeof a.job === 'string' && vivos.has(a.job));
+    if (!abas.length) continue;
+    const c = criarColuna(feitas.length ? feitas[feitas.length - 1].c : null, 'dir');
+    definirColunaAtiva(c);
+    for (const a of abas) abrirTerminal(a.job, a.nome);
+    if (c.jobs.includes(sc.ativa)) mostrarNaColuna(c, sc.ativa);
+    feitas.push({ c, larg: sc.larg });
+  }
+  const larg = normalizarLarguras(feitas.map(f => f.larg), feitas.length);
+  feitas.forEach((f, i) => { f.c.larg = larg[i]; });
+  aplicarLarguras();
+  restaurando = false;
+  if (feitas.length) {
+    const alvoCol = (feitas[salvo.ativa] || feitas[0]).c;
+    definirColunaAtiva(alvoCol);
+    if (alvoCol.ativa) ativarAba(alvoCol.ativa);
+    agendarReajuste();
+  }
+  salvarLayout();
+}
+
+function ativarAba(job) {
+  const t = terminais.get(job);
+  if (!t) return;
+  mostrarNaColuna(t.col, job);
+  definirColunaAtiva(t.col);
+  requestAnimationFrame(() => focarAba(t));
+}
+function focarAba(t) {
+  if (t.modo === 'terminal' && t.term) t.term.focus();
+  else if (t.composer) t.composer.querySelector('textarea').focus();
+}
+// Conversa (transcrito renderizado) ou Terminal (o xterm do attach, para menus e permissoes)
+function definirModo(t, modo) {
+  if (!t.term) modo = 'conversa';
+  t.modo = modo;
+  t.area.classList.toggle('modo-terminal', modo === 'terminal');
+  if (t.botoesModo) for (const [m, b] of Object.entries(t.botoesModo)) { b.classList.toggle('ativo', m === modo); b.setAttribute('aria-pressed', m === modo); }
+  requestAnimationFrame(() => { ajustar(t); if (modo === 'conversa') rolarSeNoFim(t); focarAba(t); });
+}
+let seqPendente = 0;
+function criarAba(chave, nome, somenteLeitura) {
+  mostrarDoca(true);
+  if (!colAtiva) definirColunaAtiva(criarColuna(null));
+  const col = colAtiva;  // aba nova entra na coluna ativa
+  const area = el('div', 'term');
+  const vista = el('div', 'vista');
+  const conversaEl = el('div', 'conversa');
+  const xarea = el('div', 'term-x');
+  vista.append(conversaEl, xarea);
+  const pergunta = el('div', 'pergunta'); pergunta.hidden = true;
+  area.append(vista, pergunta);
+  col.corpo.append(area);
+  let term = null, fit = null;
+  if (!somenteLeitura) {
+    term = new Terminal({
+      cursorBlink: true, fontSize: 13, scrollback: 5000, allowProposedApi: false, theme: temaTerminal,
+      fontFamily: 'ui-monospace, "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace',
+    });
+    fit = new FitAddon.FitAddon();
+    term.loadAddon(fit);
+  }
+  const aba = el('div', 'aba');
+  aba.setAttribute('role', 'tab');
+  const rotulo = el('span', null, nome || chave);
+  const x = el('button', 'x', '×');
+  x.title = 'Fechar a aba (só desanexa: a sessão continua rodando)';
+  x.setAttribute('aria-label', 'Fechar terminal ' + (nome || chave));
+  aba.append(rotulo, x);
+  col.abasEl.append(aba);
+  aba.draggable = true;
+  const t = { aba, rotulo, area, vista, xarea, pergunta, term, fit, ws: null, nome: nome || chave, job: chave, escolhaEm: 0, fila: [], pronto: false, pendente: false,
+    modo: 'conversa', composer: null, col };
+  terminais.set(chave, t);
+  col.jobs.push(chave);
+  criarConversa(t, conversaEl);
+  if (term) {
+    const seg = el('div', 'modo-seg');
+    t.botoesModo = { conversa: el('button', null, 'Conversa'), terminal: el('button', null, 'Terminal') };
+    t.botoesModo.conversa.title = 'Mensagens renderizadas: selecione e copie à vontade';
+    t.botoesModo.terminal.title = 'O terminal do Claude (Ctrl+Esc alterna)';
+    for (const [m, b] of Object.entries(t.botoesModo)) { b.addEventListener('click', () => definirModo(t, m)); seg.append(b); }
+    vista.append(seg);
+  }
+  area.classList.add('ativa');
+  ativarAba(chave);
+  if (term) {
+    term.open(xarea);
+    try { fit.fit(); } catch (_) { /* tamanho padrao */ }
+    term.onData(d => { if (t.ws && t.ws.readyState === 1) t.ws.send(d); });
+    term.onWriteParsed(() => { clearTimeout(t.telaTimer); t.telaTimer = setTimeout(() => lerTelaDoTerminal(t), 120); });
+    new ResizeObserver(() => ajustar(t)).observe(xarea);
+  }
+  definirModo(t, 'conversa');
+  aba.addEventListener('click', () => ativarAba(t.job));
+  x.addEventListener('click', ev => { ev.stopPropagation(); fecharAba(t.job); });
+  // clique com o botao do meio (rodinha) fecha a aba, como no VSCode; o mousedown evita a rolagem automatica do Chrome
+  aba.addEventListener('mousedown', ev => { if (ev.button === 1) ev.preventDefault(); });
+  aba.addEventListener('auxclick', ev => { if (ev.button === 1) { ev.preventDefault(); ev.stopPropagation(); fecharAba(t.job); } });
+  aba.addEventListener('dragstart', ev => {
+    arrastando = t;
+    ev.dataTransfer.setData(TIPO_ABA, t.job); ev.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => aba.classList.add('arrastada'), 0);
+  });
+  aba.addEventListener('dragend', () => { arrastando = null; aba.classList.remove('arrastada'); esconderMarcas(); });
+  salvarLayout();
+  return t;
+}
+
+// liga o terminal ao servidor; o que o composer enfileirou antes vai embora quando a tela do attach aparece
+function conectarTerminal(t, job) {
+  const term = t.term;
+  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/terminal?id=' + encodeURIComponent(job)
+    + '&token=' + encodeURIComponent(TOKEN) + '&cols=' + term.cols + '&linhas=' + term.rows;
+  const ws = new WebSocket(url);
+  ws.binaryType = 'arraybuffer';
+  t.ws = ws; t.pronto = false;
+  ws.onmessage = ev => {
+    if (typeof ev.data !== 'string') {
+      term.write(new Uint8Array(ev.data));
+      if (!t.pronto) { t.pronto = true; setTimeout(() => descarregarFila(t), 700); }
+      return;
+    }
+    try {  // texto = controle do servidor (erro do composer)
+      const j = JSON.parse(ev.data);
+      if (j && j.tipo === 'erro') aviso(j.mensagem || 'erro no envio', true);
+    } catch (_) { term.write(ev.data); }
+  };
+  ws.onopen = () => ajustar(t);
+  ws.onclose = () => {
+    if (t.ws !== ws) return;  // conexao antiga (aba promovida ou reconectada)
+    term.write('\r\n\x1b[2m[desanexado: a sessão continua rodando]\x1b[0m\r\n');
+    t.aba.classList.add('desanexada');
+    t.composer.classList.add('off');
+    avisoNaConversa(t, 'Desanexado: a sessão continua rodando em segundo plano. Reabra pelo mapa.');
+  };
+}
+function descarregarFila(t) {
+  if (!t.fila.length || t.fechada) return;
+  // dialogo na tela (MCP do projeto, permissao): o texto cairia nele; espera a pessoa responder no terminal
+  if (t.menuTela || t.dialogoTela) { setTimeout(() => descarregarFila(t), 500); return; }
+  while (t.fila.length && t.ws && t.ws.readyState === 1) t.ws.send(JSON.stringify(t.fila.shift()));
+}
+
+function abrirTerminal(job, nome) {
+  if (!window.Terminal || !window.FitAddon) { aviso('Biblioteca do terminal não carregou.', true); return null; }
+  if (terminais.has(job)) { mostrarDoca(true); ativarAba(job); return terminais.get(job); }
+  const t = criarAba(job, nome);
+  conectarTerminal(t, job);
+  criarComposer(t);
+  t.composer.querySelector('textarea').focus();
+  puxarConversa(t);
+  return t;
+}
+
+// aba que aparece na hora ("iniciando...") enquanto a sessao ainda esta sendo criada
+function abrirTerminalPendente() {
+  if (!window.Terminal || !window.FitAddon) { aviso('Biblioteca do terminal não carregou.', true); return null; }
+  const t = criarAba('pendente:' + (++seqPendente), 'iniciando…');
+  t.pendente = true;
+  t.term.write('\x1b[2miniciando a sessão…\x1b[0m\r\n');
+  t.conv.vazio.textContent = 'Iniciando a sessão… você já pode escrever: a mensagem vai assim que ela conectar.';
+  criarComposer(t);
+  t.composer.querySelector('textarea').focus();
+  return t;
+}
+function promoverTerminal(t, job, nome) {
+  const antigo = t.job;
+  terminais.delete(antigo);
+  t.term.reset();  // some o "iniciando..." / dialogo; o attach redesenha a tela
+  t.job = job; t.pendente = false; t.nome = nome || job;
+  t.rotulo.textContent = t.nome;
+  terminais.set(job, t);
+  if (ativoJob === antigo) ativoJob = job;
+  const iCol = t.col.jobs.indexOf(antigo);
+  if (iCol >= 0) t.col.jobs[iCol] = job;
+  if (t.col.ativa === antigo) t.col.ativa = job;
+  salvarLayout();
+  conectarTerminal(t, job);
+  atualizarModeloDoTerminal(t);
+  t.composer.classList.remove('off');
+  t.conv.vazio.textContent = 'Sessão pronta. Escreva abaixo.';
+  definirModo(t, 'conversa');
+  puxarConversa(t);
+}
+
+const ROTULO_MODELO = Object.fromEntries([['opus', 'Opus 5.5'], ['sonnet', 'Sonnet 5.5'], ['haiku', 'Haiku 5.5'], ['fable', 'Fable 5.1']]);
+async function criarSessaoRapida(noId) {
+  const t = abrirTerminalPendente();
+  if (!t) return;
+  const { modelo, esforco, nome } = padraoNovaSessao;  // nome so existe em testes (para identificar e limpar a sessao)
+  t.modeloAtual = modelo; t.modeloRotulo = ROTULO_MODELO[modelo]; t.esforco = esforco; t.pintarPilulas();
+  await tentarCriar(t, noId, { modelo, esforco, nome });
+}
+
+// cria a sessao --bg na aba pendente; pasta nao confiavel leva ao fluxo oficial de confianca na mesma aba
+async function tentarCriar(t, noId, { modelo, esforco, nome }) {
+  const no = todosNos.find(n => n.id === noId);
+  t.pendente = true;
+  const r = await postar('/api/nova-sessao', nome ? { no: noId, modelo, esforco, nome } : { no: noId, modelo, esforco });
+  if (![...terminais.values()].includes(t)) { aviso(r.ok ? 'Sessão criada, mas a aba foi fechada (ela segue rodando).' : (r.dados.erro || 'Não foi possível criar a sessão.'), !r.ok); return; }
+  if (r.ok) {
+    removerAvisoConfianca(t);
+    guardarEsforco(r.dados.jobId, esforco);
+    promoverTerminal(t, r.dados.jobId, no ? no.nome : r.dados.jobId);
+    return;
+  }
+  if (r.dados.codigo === 'nao_confiavel') { mostrarConfianca(t, noId, { modelo, esforco, nome }); return; }
+  t.term.write('\r\n\x1b[31m' + (r.dados.erro || 'não foi possível criar a sessão') + '\x1b[0m\r\n');
+  t.conv.vazio.textContent = '';
+  avisoNaConversa(t, r.dados.erro || 'Não foi possível criar a sessão.', 'erro');
+  t.aba.classList.add('desanexada'); t.composer.classList.add('off'); t.rotulo.textContent = 'falhou';
+  aviso(r.dados.erro || 'Não foi possível criar a sessão.', true);
+}
+
+// ---- confianca da pasta (dialogo oficial do Claude numa PTY, aceito pelo usuario no xterm) ----
+function removerAvisoConfianca(t) { if (t.avisoConfianca) { t.avisoConfianca.remove(); t.avisoConfianca = null; } }
+function mostrarAvisoConfianca(t, texto, botoes) {
+  removerAvisoConfianca(t);
+  const caixa = el('div', 'aviso-confianca');
+  caixa.append(el('span', null, texto));
+  for (const [rotulo, acao] of botoes) { const b = el('button', 'bt', rotulo); b.addEventListener('click', acao); caixa.append(b); }
+  t.vista.append(caixa);  // fora do xterm: aparece nos dois modos
+  t.avisoConfianca = caixa;
+}
+function mostrarConfianca(t, noId, params) {
+  t.rotulo.textContent = 'pasta não confiável';
+  t.term.write('\r\n\x1b[33mEsta pasta ainda não é confiável para o Claude.\x1b[0m\r\n');
+  mostrarAvisoConfianca(t, 'Esta pasta ainda não é confiável para o Claude.', [['Confiar nesta pasta', () => iniciarConfianca(t, noId, params)]]);
+}
+function iniciarConfianca(t, noId, params) {
+  removerAvisoConfianca(t);
+  definirModo(t, 'terminal');  // o dialogo oficial e respondido no xterm
+  t.term.reset();
+  t.term.write('\x1b[2mabrindo o diálogo oficial de confiança… responda aqui com o teclado\x1b[0m\r\n');
+  t.rotulo.textContent = 'confiar na pasta?';
+  const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/confiar?no=' + encodeURIComponent(noId)
+    + '&token=' + encodeURIComponent(TOKEN) + '&cols=' + t.term.cols + '&linhas=' + t.term.rows;
+  const ws = new WebSocket(url);
+  ws.binaryType = 'arraybuffer';
+  t.ws = ws;
+  let desfecho = null;
+  ws.onopen = () => { ajustar(t); t.term.focus(); };  // o usuario responde no xterm (o composer segue enfileirando)
+  ws.onmessage = ev => {
+    if (typeof ev.data !== 'string') { t.term.write(new Uint8Array(ev.data)); return; }
+    let j = null;
+    try { j = JSON.parse(ev.data); } catch (_) { return; }
+    if (!j || j.tipo !== 'confianca') return;
+    desfecho = j.estado;
+    if (j.estado === 'aceita') {
+      t.ws = null;
+      t.term.reset();
+      t.term.write('\x1b[2mconfiança aceita; criando a sessão…\x1b[0m\r\n');
+      t.rotulo.textContent = 'iniciando…';
+      tentarCriar(t, noId, params);  // refaz o --bg com o mesmo modelo/esforco; a fila do composer segue preservada
+    } else if (j.estado === 'recusada') {
+      t.ws = null;
+      t.rotulo.textContent = 'pasta não confiada';
+      t.composer.classList.add('off');
+      mostrarAvisoConfianca(t, 'Pasta não confiada.', [['Fechar aba', () => fecharAba(t.job)]]);
+    }
+  };
+  ws.onclose = () => {
+    if (desfecho || ![...terminais.values()].includes(t)) return;
+    t.ws = null;
+    mostrarAvisoConfianca(t, 'A conexão do diálogo de confiança caiu.', [['Tentar de novo', () => iniciarConfianca(t, noId, params)], ['Fechar aba', () => fecharAba(t.job)]]);
+  };
+}
+
+// pasta da nova sessao: no selecionado > no do foco > geral da regiao do foco; null = perguntar (foco Tudo)
+function noParaNovaSessao() {
+  const comPasta = todosNos.filter(n => n.caminho);
+  const ids = new Set(comPasta.map(n => n.id));
+  if (noSel && ids.has(noSel)) return noSel;
+  if (foco.no && ids.has(foco.no)) return foco.no;
+  if (noFoco && ids.has(noFoco)) return noFoco;
+  if (foco.regiao) {
+    const daRegiao = comPasta.filter(n => n.regiao === foco.regiao);
+    const geral = daRegiao.find(n => n.id === foco.regiao + '/geral');
+    if (geral) return geral.id;
+    if (daRegiao.length) return daRegiao[0].id;
+  }
+  return null;
+}
+const popoverProj = document.getElementById('popover-proj');
+function mostrarPopoverProjetos(ancora) {
+  popoverProj.textContent = '';
+  const grupos = new Map();
+  for (const n of todosNos.filter(n => n.caminho)) {
+    if (!grupos.has(n.regiao)) grupos.set(n.regiao, []);
+    grupos.get(n.regiao).push(n);
+  }
+  const peso = r => (grandes.includes(r) ? grandes.indexOf(r) - grandes.length : 0);  // workspaces primeiro, na ordem do config
+  const ordem = [...grupos.keys()].sort((a, b) => peso(a) - peso(b) || a.localeCompare(b));
+  for (const reg of ordem) {
+    popoverProj.append(el('div', 'reg', nomeDaRegiao(reg)));
+    for (const n of grupos.get(reg).sort((a, b) => a.nome.localeCompare(b.nome))) {
+      const b = el('button', null, n.nome);
+      b.addEventListener('click', () => { popoverProj.hidden = true; criarSessaoRapida(n.id); });
+      popoverProj.append(b);
+    }
+  }
+  const r = ancora.getBoundingClientRect();
+  popoverProj.style.left = Math.min(r.left, L - 280) + 'px';
+  popoverProj.style.top = (r.bottom + 6) + 'px';
+  popoverProj.hidden = false;
+}
+document.getElementById('nova-sessao').addEventListener('click', e => {
+  if (e.shiftKey) { abrirDialogoNova(noParaNovaSessao()); return; }
+  const no = noParaNovaSessao();
+  if (no) criarSessaoRapida(no); else mostrarPopoverProjetos(e.currentTarget);
+});
+document.getElementById('nova-sessao-mais').addEventListener('click', () => abrirDialogoNova(noParaNovaSessao()));
+document.addEventListener('pointerdown', e => { if (!popoverProj.contains(e.target) && !e.target.closest('#nova-sessao')) popoverProj.hidden = true; });
+
+function fecharAba(job) {
+  const t = terminais.get(job);
+  if (!t) return;
+  t.fechada = true;
+  clearTimeout(t.conv.timer);
+  try { t.ws.close(); } catch (_) { /* ja fechado */ }
+  if (t.term) t.term.dispose();
+  t.aba.remove(); t.area.remove();
+  terminais.delete(job);
+  const col = t.col, i = col.jobs.indexOf(job);
+  col.jobs.splice(i, 1);
+  if (t.term) aviso('Aba fechada (só desanexa): a sessão continua rodando em segundo plano.');
+  if (!col.jobs.length) removerColuna(col);
+  else if (col.ativa === job) mostrarNaColuna(col, col.jobs[Math.min(i, col.jobs.length - 1)]);
+  if (!terminais.size) { ativoJob = null; colAtiva = null; mostrarDoca(false); }
+  else if (colAtiva && colAtiva.ativa) ativarAba(colAtiva.ativa);
+  salvarLayout();
+}
+document.getElementById('doca-max').addEventListener('click', e => {
+  const max = document.body.classList.toggle('max-term');
+  e.target.textContent = max ? 'Restaurar' : 'Maximizar';
+  document.documentElement.style.setProperty('--ar', (L / A).toFixed(3));
+  setTimeout(ajustarTerminais, 50);
+});
+document.getElementById('doca-min').addEventListener('click', () => { mostrarDoca(false); });
+canvas.addEventListener('click', () => {
+  if (document.body.classList.contains('max-term')) { document.getElementById('doca-max').click(); }
+});
+(function arrastarBordaDaDoca() {
+  const borda = document.getElementById('doca-borda');
+  let ativo = false;
+  borda.addEventListener('pointerdown', e => { ativo = true; borda.setPointerCapture(e.pointerId); e.preventDefault(); });
+  borda.addEventListener('pointermove', e => { if (ativo) definirAlturaDoca(window.innerHeight - e.clientY); });
+  borda.addEventListener('pointerup', () => { ativo = false; });
+})();
+window.addEventListener('resize', () => setTimeout(ajustarTerminais, 50));
+
+// ---------- composer: caixa de mensagem, anexos de imagem, modelo e esforco ----------
+const MODELOS_UI = [['opus', 'Opus 5.5'], ['sonnet', 'Sonnet 5.5'], ['haiku', 'Haiku 5.5'], ['fable', 'Fable 5.1']];
+const ESFORCOS_UI = ['low', 'medium', 'high', 'xhigh', 'max'];
+function rotuloModelo(id) {  // claude-opus-5-5 -> "Opus 5.5"; claude-haiku-4-5-20251001 -> "Haiku 4.5"
+  const m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?/.exec(id || '');
+  if (!m) return id ? nomeCurtoModelo(id) : 'modelo';
+  return m[1][0].toUpperCase() + m[1].slice(1) + ' ' + m[2] + (m[3] ? '.' + m[3] : '');
+}
+function guardarEsforco(job, v) { try { sessionStorage.setItem('mapa.esforco.' + job, v); } catch (_) { /* opcional */ } }
+function lerEsforco(job) { try { return sessionStorage.getItem('mapa.esforco.' + job) || ''; } catch (_) { return ''; } }
+
+async function subirImagem(arquivo) {
+  if (!/^image\/(png|jpeg|webp|gif)$/.test(arquivo.type)) { aviso('Só imagens png, jpeg, webp ou gif.', true); return null; }
+  if (arquivo.size > 15 * 1024 * 1024) { aviso('Imagem maior que 15 MB.', true); return null; }
+  try {
+    const r = await fetch('/api/anexo', { method: 'POST', headers: { 'Content-Type': arquivo.type, 'X-Token': TOKEN }, body: arquivo });
+    const j = await r.json();
+    if (!r.ok) { aviso(j.erro || 'Falha no envio da imagem (' + r.status + ')', true); return null; }
+    return j.id;
+  } catch (_) { aviso('Falha no envio da imagem.', true); return null; }
+}
+
+function criarComposer(t) {
+  const c = el('div', 'composer');
+  const lista = el('div', 'anexos-c');
+  const caixa = el('textarea');
+  caixa.rows = 1;
+  caixa.placeholder = 'Mensagem (Enter envia · Shift+Enter quebra linha · cole ou arraste imagens)';
+  caixa.setAttribute('aria-label', 'Mensagem para a sessão');
+  const barra = el('div', 'barra-c');
+  const seletor = el('input'); seletor.type = 'file'; seletor.accept = 'image/png,image/jpeg,image/webp,image/gif'; seletor.multiple = true; seletor.hidden = true;
+  const anexar = el('button', 'bt', '+ anexar imagem'); anexar.title = 'Anexar imagem (ou cole com Ctrl+V / arraste para cá)';
+  const pModelo = el('button', 'bt pilula', 'modelo ▾'); pModelo.title = 'Trocar o modelo (/model)';
+  const pEsforco = el('button', 'bt pilula', 'esforço ▾'); pEsforco.title = 'Trocar o esforço (/effort)';
+  const parar = el('button', 'bt', 'Esc'); parar.title = 'Interromper o que a sessão está fazendo (envia Esc)';
+  const enviar = el('button', 'bt enviar', '↑'); enviar.title = 'Enviar (Enter)'; enviar.setAttribute('aria-label', 'Enviar');
+  barra.append(anexar, pModelo, pEsforco, el('span', 'espaco'), parar, enviar);
+  c.append(lista, caixa, barra, seletor);
+  t.area.append(c);
+  t.composer = c;
+  const anexos = [];  // { id, url }
+
+  const ajustarAltura = () => { caixa.style.height = '22px'; caixa.style.height = Math.min(caixa.scrollHeight, 160) + 'px'; setTimeout(() => ajustar(t), 30); };
+  const atualizarEnviar = () => { enviar.disabled = !caixa.value.trim() && !anexos.length; };
+  // sem conexao pronta (sessao iniciando, attach ainda desenhando): enfileira e envia quando conectar
+  const mandar = obj => {
+    if (t.ws && t.ws.readyState === 1 && t.pronto) { t.ws.send(JSON.stringify(obj)); return true; }
+    if (t.pendente || (t.ws && t.ws.readyState <= 1)) { t.fila.push(obj); aviso('Na fila: envio assim que o terminal conectar.'); return true; }
+    aviso('Terminal desconectado.', true); return false;
+  };
+
+  function pintarAnexos() {
+    lista.textContent = '';
+    for (const a of anexos) {
+      const m = el('div', 'mini'); const img = el('img'); img.src = a.url; img.alt = 'imagem anexada';
+      const x = el('button', null, '×'); x.type = 'button'; x.setAttribute('aria-label', 'Remover anexo');
+      x.addEventListener('click', () => { URL.revokeObjectURL(a.url); anexos.splice(anexos.indexOf(a), 1); pintarAnexos(); atualizarEnviar(); ajustarAltura(); });
+      m.append(img, x); lista.append(m);
+    }
+  }
+  async function adicionar(arquivos) {
+    for (const f of arquivos) {
+      const id = await subirImagem(f);
+      if (id) anexos.push({ id, url: URL.createObjectURL(f) });
+    }
+    pintarAnexos(); atualizarEnviar(); ajustarAltura();
+  }
+  function enviarMensagem() {
+    const texto = caixa.value;
+    if (!texto.trim() && !anexos.length) return;
+    if (!mandar({ tipo: 'enviar', texto, anexos: anexos.map(a => a.id) })) return;
+    mostrarFantasma(t, texto, anexos.length);
+    for (const a of anexos) URL.revokeObjectURL(a.url);
+    anexos.length = 0; caixa.value = ''; pintarAnexos(); atualizarEnviar(); ajustarAltura();
+  }
+
+  caixa.addEventListener('input', () => { ajustarAltura(); atualizarEnviar(); });
+  caixa.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); enviarMensagem(); }
+    // Esc com a caixa vazia interrompe o turno em andamento (como na extensao do VSCode)
+    else if (e.key === 'Escape' && !e.ctrlKey && !caixa.value && t.area.classList.contains('trabalhando')) { e.preventDefault(); mandar({ tipo: 'interromper' }); }
+  });
+  caixa.addEventListener('paste', e => {
+    const imagens = [...(e.clipboardData ? e.clipboardData.items : [])].filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile()).filter(Boolean);
+    if (imagens.length) { if (!e.clipboardData.getData('text')) e.preventDefault(); adicionar(imagens); }
+  });
+  c.addEventListener('dragover', e => { if (arrastando) return; e.preventDefault(); c.classList.add('arrastando'); });  // arrasto de aba sobe ate a coluna
+  c.addEventListener('dragleave', () => c.classList.remove('arrastando'));
+  c.addEventListener('drop', e => {
+    if (arrastando) return;
+    e.preventDefault(); c.classList.remove('arrastando');
+    const imagens = [...(e.dataTransfer ? e.dataTransfer.files : [])].filter(f => f.type.startsWith('image/'));
+    if (imagens.length) adicionar(imagens); else aviso('Solte uma imagem (png, jpeg, webp ou gif).', true);
+  });
+  anexar.addEventListener('click', () => seletor.click());
+  seletor.addEventListener('change', () => { adicionar([...seletor.files]); seletor.value = ''; });
+  enviar.addEventListener('click', enviarMensagem);
+  parar.addEventListener('click', () => mandar({ tipo: 'interromper' }));
+
+  // pilulas com menu: trocar manda o comando na hora
+  function menuPilula(botao, opcoes, atual, aoEscolher) {
+    const aberto = botao.querySelector('.menu-pilula');
+    document.querySelectorAll('.menu-pilula').forEach(m => m.remove());
+    if (aberto) return;
+    const m = el('div', 'menu-pilula');
+    for (const [valor, rotulo] of opcoes) {
+      const b = el('button', valor === atual() ? 'atual' : null, rotulo);
+      b.addEventListener('click', ev => { ev.stopPropagation(); m.remove(); aoEscolher(valor, rotulo); });
+      m.append(b);
+    }
+    botao.append(m);
+  }
+  const pintarPilulas = () => {
+    pModelo.firstChild.textContent = (t.modeloRotulo || 'modelo') + ' ▾';
+    pEsforco.firstChild.textContent = (t.esforco ? 'esforço: ' + t.esforco : 'esforço') + ' ▾';
+  };
+  t.esforco = lerEsforco(t.job);
+  t.pintarPilulas = pintarPilulas;
+  pintarPilulas();
+  pModelo.addEventListener('click', () => menuPilula(pModelo, MODELOS_UI, () => t.modeloAtual, (valor, rotulo) => {
+    if (!mandar({ tipo: 'comando', nome: 'model', valor })) return;
+    t.modeloAtual = valor; t.modeloRotulo = rotulo; t.escolhaEm = Date.now(); pintarPilulas();
+    aviso('/model ' + valor + ' enviado. Se o CLI pedir confirmação, responda no terminal.');
+  }));
+  pEsforco.addEventListener('click', () => menuPilula(pEsforco, ESFORCOS_UI.map(v => [v, v]), () => t.esforco, valor => {
+    if (!mandar({ tipo: 'comando', nome: 'effort', valor })) return;
+    t.esforco = valor; guardarEsforco(t.job, valor); pintarPilulas();
+  }));
+  document.addEventListener('pointerdown', e => { if (!e.target.closest('.pilula')) c.querySelectorAll('.menu-pilula').forEach(m => m.remove()); });
+  atualizarEnviar();
+  if (!t.pendente) atualizarModeloDoTerminal(t);
+}
+
+// o modelo atual vem do detalhe da sessao (message.model mais recente)
+async function atualizarModeloDoTerminal(t) {
+  if (!terminais.has(t.job)) return;
+  if (Date.now() - t.escolhaEm < 20000) { setTimeout(() => atualizarModeloDoTerminal(t), 8000); return; }
+  const s = [...sessoes.values()].find(x => x.jobId === t.job);
+  if (s) {
+    try {
+      const r = await fetch('/api/sessao/' + encodeURIComponent(s.id), { cache: 'no-store' });
+      if (r.ok) {
+        const d = await r.json();
+        const id = d.principal && d.principal.modelo;
+        const cfg = d.config || {};
+        if (id && id !== t.modeloId) { t.modeloId = id; t.modeloRotulo = rotuloModelo(id); t.modeloAtual = (MODELOS_UI.find(([v]) => id.includes(v)) || [])[0]; t.pintarPilulas(); }
+        else if (!id && !t.modeloId && cfg.modelo) {  // antes da primeira resposta: o modelo da criacao
+          const par = MODELOS_UI.find(([v]) => v === cfg.modelo);
+          if (par) { t.modeloAtual = par[0]; t.modeloRotulo = par[1]; t.pintarPilulas(); }
+        }
+        if (cfg.esforco && cfg.esforco !== t.esforco) { t.esforco = cfg.esforco; guardarEsforco(t.job, cfg.esforco); t.pintarPilulas(); }
+      }
+    } catch (_) { /* tenta de novo no proximo ciclo */ }
+  }
+  setTimeout(() => atualizarModeloDoTerminal(t), s ? 8000 : 1500);  // sessao nova ainda fora do estado: tenta logo
+}
+
+// Ctrl+Esc alterna entre Conversa e Terminal; o xterm segue usavel para permissoes e menus
+doca.addEventListener('keydown', e => {
+  if (!(e.ctrlKey && e.key === 'Escape')) return;
+  e.preventDefault(); e.stopPropagation();
+  const t = terminais.get(ativoJob);
+  if (!t || !t.term) return;
+  definirModo(t, t.modo === 'terminal' ? 'conversa' : 'terminal');
+}, true);
+
+// ---------- conversa: o transcrito renderizado, como na extensao do VSCode ----------
+// O texto e DOM de verdade (selecionar, Ctrl+C, copiar bloco). O xterm segue conectado e invisivel:
+// e por ele que a mensagem entra e que aparecem os menus (permissao, /model), lidos da tela e virados botoes.
+const MD_OK = !!(window.marked && window.DOMPurify);
+if (MD_OK) marked.setOptions({ gfm: true, breaks: false });
+const SO_TEXTO = { FORBID_TAGS: ['style', 'img', 'form', 'input', 'button', 'iframe', 'svg', 'math'], FORBID_ATTR: ['style', 'class', 'id'] };
+
+async function copiarTexto(texto) {
+  try { await navigator.clipboard.writeText(texto); return true; } catch (_) { /* sem permissao: plano B */ }
+  const area = el('textarea'); area.value = texto; area.style.position = 'fixed'; area.style.opacity = '0';
+  document.body.append(area); area.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (_) { ok = false; }
+  area.remove();
+  return ok;
+}
+function botaoCopiar(obterTexto, rotulo) {
+  const b = el('button', 'bt-mini', rotulo || 'copiar');
+  b.type = 'button';
+  b.addEventListener('click', async ev => {
+    ev.stopPropagation();
+    const ok = await copiarTexto(obterTexto());
+    b.textContent = ok ? 'copiado' : 'falhou';
+    setTimeout(() => { b.textContent = rotulo || 'copiar'; }, 1200);
+  });
+  return b;
+}
+function markdown(texto) {
+  const div = el('div', 'md');
+  if (!MD_OK) { div.textContent = texto; div.style.whiteSpace = 'pre-wrap'; return div; }
+  div.innerHTML = DOMPurify.sanitize(marked.parse(texto), SO_TEXTO);
+  for (const a of div.querySelectorAll('a')) {
+    if (!/^https?:\/\//i.test(a.getAttribute('href') || '')) a.removeAttribute('href');
+    a.target = '_blank'; a.rel = 'noopener noreferrer';
+  }
+  for (const pre of div.querySelectorAll('pre')) {
+    const caixa = el('div', 'bloco-cod');
+    pre.replaceWith(caixa);
+    caixa.append(pre, botaoCopiar(() => pre.textContent));
+  }
+  return div;
+}
+function acoesDaMensagem(d, texto) {
+  const a = el('div', 'msg-acoes');
+  a.append(botaoCopiar(() => texto));
+  d.append(a);
+}
+function horaDe(ts) { return ts ? new Date(ts * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) : ''; }
+
+function criarConversa(t, scroller) {
+  const col = el('div', 'conv-col');
+  const topo = el('div', 'conv-topo'); topo.hidden = true;
+  const anteriores = el('button', 'bt-mini', 'carregar mensagens anteriores');
+  anteriores.addEventListener('click', () => carregarAnteriores(t));
+  topo.append(anteriores);
+  const vazio = el('div', 'conv-vazio', 'Carregando a conversa…');
+  const lista = el('div', 'conv-lista');
+  const fim = el('div', 'conv-fim'); fim.hidden = true;
+  const fimTexto = el('span');
+  fim.append(el('span', 'giro'), fimTexto);
+  col.append(topo, vazio, lista, fim);
+  scroller.append(col);
+  t.conv = { scroller, topo, vazio, lista, fim, fimTexto, sid: null, cursor: null, inicio: 0, ferr: new Map(), orfaos: new Map(),
+    timer: 0, buscando: false, noFim: true, fantasma: null };
+  scroller.addEventListener('scroll', () => {
+    if (scroller.clientHeight) t.conv.noFim = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60;
+  });
+}
+function rolarSeNoFim(t) {
+  const c = t.conv;
+  if (c && c.noFim && c.scroller.clientHeight) c.scroller.scrollTop = c.scroller.scrollHeight;
+}
+function avisoNaConversa(t, texto, tipo) {
+  if (!t.conv) return;
+  t.conv.vazio.hidden = true;
+  t.conv.lista.append(el('div', 'aviso-c' + (tipo ? ' ' + tipo : ''), texto));
+  rolarSeNoFim(t);
+}
+function mostrarFantasma(t, texto, imagens) {
+  const c = t.conv;
+  if (c.fantasma) c.fantasma.remove();
+  const d = el('div', 'msg-u fantasma');
+  d.append(el('div', 'msg-u-tx', texto || ''));
+  if (imagens) d.append(el('div', 'chip', imagens + (imagens > 1 ? ' imagens' : ' imagem')));
+  d.title = 'enviando…';
+  c.lista.append(d);
+  c.fantasma = d;
+  c.vazio.hidden = true;
+  c.noFim = true; rolarSeNoFim(t);
+  setTimeout(() => { if (c.fantasma === d) { d.remove(); c.fantasma = null; } }, 20000);
+}
+
+function sessaoDoTerminal(t) {
+  if (t.sidFixo) return sessoes.get(t.sidFixo);
+  return [...sessoes.values()].find(x => x.jobId && x.jobId === t.job);
+}
+function reiniciarConversa(t, sid) {
+  const c = t.conv;
+  c.sid = sid; c.cursor = null; c.inicio = 0; c.ferr.clear(); c.orfaos.clear();
+  c.lista.textContent = ''; c.topo.hidden = true; c.noFim = true;
+  c.vazio.hidden = false; c.vazio.textContent = 'Carregando a conversa…';
+}
+async function buscarConversa(sid, params) {
+  const r = await fetch('/api/conversa/' + encodeURIComponent(sid) + params, { cache: 'no-store', headers: { 'X-Token': TOKEN } });
+  if (!r.ok) return { erro: r.status };
+  return r.json();
+}
+// polling: 1 s com a aba visivel, 5 s escondida; o servidor so manda o que foi acrescentado
+async function puxarConversa(t) {
+  const c = t.conv;
+  if (!c || t.fechada || c.buscando) return;
+  clearTimeout(c.timer);
+  c.buscando = true;
+  let espera = 1000;
+  try {
+    const s = sessaoDoTerminal(t);
+    const sid = t.sidFixo || (s && s.id) || c.sid;
+    if (sid && sid !== c.sid) reiniciarConversa(t, sid);  // /clear troca o id da sessao do mesmo job
+    if (sid) {
+      const d = await buscarConversa(sid, c.cursor == null ? '' : '?desde=' + c.cursor);
+      if (c.sid === sid && !t.fechada) {
+        if (d.erro === 404) { if (!c.lista.childElementCount) c.vazio.textContent = t.pendente ? c.vazio.textContent : 'Sem mensagens ainda. Escreva abaixo.'; espera = 1500; }
+        else if (d.erro) espera = 3000;
+        else if (d.reiniciar) { reiniciarConversa(t, sid); espera = 50; }
+        else {
+          const primeira = c.cursor == null;
+          c.cursor = d.cursor;
+          if (primeira) { c.inicio = d.inicio; c.topo.hidden = !d.inicio; }
+          adicionarItens(t, d.itens, false);
+          if (primeira && !d.itens.length) c.vazio.textContent = 'Sem mensagens ainda. Escreva abaixo.';
+          if (d.mais) espera = 50;
+        }
+      }
+    } else espera = 1500;
+  } catch (_) { espera = 3000; }
+  c.buscando = false;
+  atualizarStatusConversa(t);
+  if (t.fechada) return;
+  const visivel = !document.hidden && !doca.hidden && !!t.col && t.col.ativa === t.job;
+  c.timer = setTimeout(() => puxarConversa(t), visivel ? espera : Math.max(espera, 5000));
+}
+async function carregarAnteriores(t) {
+  const c = t.conv;
+  if (!c.sid || !c.inicio) return;
+  const botao = c.topo.firstChild;
+  botao.disabled = true; botao.textContent = 'carregando…';
+  try {
+    const d = await buscarConversa(c.sid, '?ate=' + c.inicio);
+    if (!d.erro) { c.inicio = d.inicio; adicionarItens(t, d.itens, true); }
+  } catch (_) { /* tenta de novo no clique */ }
+  botao.disabled = false; botao.textContent = 'carregar mensagens anteriores';
+  c.topo.hidden = !c.inicio;
+}
+function adicionarItens(t, itens, antes) {
+  const c = t.conv;
+  if (!itens.length) return;
+  const frag = document.createDocumentFragment();
+  let chegouUsuario = false;
+  for (const it of itens) {
+    const e = elementoDoItem(t, it);
+    if (e) { if (it.ts) e.title = e.title || horaDe(it.ts); frag.append(e); }
+    if (it.t === 'usuario') chegouUsuario = true;
+  }
+  if (!frag.childNodes.length) return;
+  c.vazio.hidden = true;
+  if (antes) {
+    const h = c.scroller.scrollHeight;
+    c.lista.prepend(frag);
+    c.scroller.scrollTop += c.scroller.scrollHeight - h;  // segura o que estava na tela
+    return;
+  }
+  if (chegouUsuario && c.fantasma) { c.fantasma.remove(); c.fantasma = null; }
+  if (c.fantasma) c.lista.insertBefore(frag, c.fantasma); else c.lista.append(frag);
+  rolarSeNoFim(t);
+}
+function elementoDoItem(t, it) {
+  switch (it.t) {
+    case 'usuario': {
+      const d = el('div', 'msg-u');
+      if (it.texto) d.append(el('div', 'msg-u-tx', it.texto));
+      if (it.imagens) d.append(el('div', 'chip', it.imagens + (it.imagens > 1 ? ' imagens' : ' imagem')));
+      acoesDaMensagem(d, it.texto || '');
+      return d;
+    }
+    case 'texto': {
+      const d = el('div', 'msg-a');
+      d.append(markdown(it.texto));
+      acoesDaMensagem(d, it.texto);
+      return d;
+    }
+    case 'pensou': {
+      if (!it.texto || !it.texto.trim()) return null;  // pensamento redigido: so a assinatura, nada a mostrar
+      const det = el('details', 'pensou');
+      det.append(el('summary', null, 'Pensamento'), el('div', 'pensou-tx', it.texto));
+      return det;
+    }
+    case 'ferramenta': return elementoFerramenta(t, it);
+    case 'resultado': aplicarResultado(t, it); return null;
+    case 'aviso': {
+      if (it.tipo === 'saida') { const p = el('pre', 'cod', it.texto); return p; }
+      const rot = it.tipo === 'interrompido' ? 'Interrompido pelo usuário' : it.texto;
+      return el('div', 'aviso-c ' + (it.tipo || ''), rot);
+    }
+    default: return null;
+  }
+}
+
+function elementoFerramenta(t, it) {
+  const box = el('div', 'ferr pendente');
+  const cab = el('button', 'ferr-cab');
+  cab.type = 'button';
+  cab.append(el('span', 'ferr-pt'), el('b', null, it.nome), el('span', 'ferr-rs', it.resumo || ''));
+  const corpo = el('div', 'ferr-corpo'); corpo.hidden = true;
+  box.append(cab, corpo);
+  box._it = it; box._res = null;
+  const abrir = sim => { corpo.hidden = !sim; box.classList.toggle('aberta', sim); if (sim) preencherFerramenta(box); };
+  cab.addEventListener('click', () => abrir(corpo.hidden));
+  box._abrir = abrir;
+  if (it.nome === 'Edit' || it.nome === 'MultiEdit') abrir(true);  // diff a vista, como no VSCode
+  t.conv.ferr.set(it.id, box);
+  const orfao = t.conv.orfaos.get(it.id);
+  if (orfao) { t.conv.orfaos.delete(it.id); aplicarResultado(t, orfao); }
+  return box;
+}
+function aplicarResultado(t, it) {
+  const box = t.conv.ferr.get(it.id);
+  if (!box) { t.conv.orfaos.set(it.id, it); return; }  // o tool_use esta numa janela ainda nao carregada
+  box._res = it;
+  box.classList.remove('pendente');
+  box.classList.add(it.erro ? 'erro' : 'ok');
+  if (it.erro && !box.classList.contains('aberta')) box._abrir(true);
+  else if (!box.querySelector('.ferr-corpo').hidden) preencherFerramenta(box);
+}
+function linhaFerramenta(rotulo, conteudo, erro) {
+  const l = el('div', 'ferr-linha' + (erro ? ' erro' : ''));
+  l.append(el('span', null, rotulo));
+  if (typeof conteudo === 'string') l.append(el('pre', null, conteudo)); else l.append(conteudo);
+  return l;
+}
+function diffSimples(velho, novo) {
+  const d = el('div', 'diff');
+  for (const linha of (velho || '').split('\n')) d.append(el('div', 'rem', '- ' + linha));
+  for (const linha of (novo || '').split('\n')) d.append(el('div', 'add', '+ ' + linha));
+  return d;
+}
+function preencherFerramenta(box) {
+  const it = box._it, res = box._res, e = it.entrada || {};
+  const corpo = box.querySelector('.ferr-corpo');
+  corpo.textContent = '';
+  if (it.nome === 'Bash') corpo.append(linhaFerramenta('IN', e.command || ''));
+  else if (it.nome === 'Edit') corpo.append(linhaFerramenta('IN', (e.file_path || '') + (e.replace_all === 'true' ? '  (todas as ocorrências)' : '')), linhaFerramenta('', diffSimples(e.old_string, e.new_string)));
+  else if (it.nome === 'Write') corpo.append(linhaFerramenta('IN', e.file_path || ''), linhaFerramenta('', e.content || ''));
+  else {
+    const chaves = Object.keys(e);
+    if (chaves.length) corpo.append(linhaFerramenta('IN', chaves.map(k => k + ': ' + e[k]).join('\n')));
+  }
+  const ocultarSaida = res && !res.erro && (it.nome === 'Edit' || it.nome === 'Write');
+  if (res && !ocultarSaida) {
+    let texto = res.texto || (res.imagens ? '' : '(sem saída)');
+    if (res.imagens) texto += (texto ? '\n' : '') + '[' + res.imagens + (res.imagens > 1 ? ' imagens]' : ' imagem]');
+    if (res.cortado) texto += '\n… mais ' + res.cortado.toLocaleString('pt-BR') + ' caracteres';
+    corpo.append(linhaFerramenta('OUT', texto, res.erro));
+  } else if (!res) corpo.append(linhaFerramenta('OUT', 'aguardando…'));
+}
+
+// spinner do turno: a linha "… (esc to interrupt)" da tela do CLI, ou o tempo desde o inicio do turno
+// aba criada pelo "+ sessao" nasce com o nome do no ("geral"): assim que a sessao tem titulo (ou ao
+// menos o primeiro prompt), a aba passa a mostrar isso, como as abertas pela lista
+function renomearAba(t, s) {
+  if (!s || t.pendente || !(s.titulo || s.nome || s.primeiroPrompt)) return;
+  const nome = tituloCurto(s, 24);
+  if (nome === t.nome) return;
+  t.nome = nome;
+  t.rotulo.textContent = nome;
+  t.aba.title = s.titulo || s.nome || s.primeiroPrompt;
+  salvarLayout();
+}
+function atualizarStatusConversa(t) {
+  if (!t.conv) return;
+  const s = sessaoDoTerminal(t);
+  renomearAba(t, s);
+  const trabalhando = !!s && s.coluna === 'trabalhando';
+  t.area.classList.toggle('trabalhando', trabalhando || !!t.linhaSpinner);
+  const mostrar = trabalhando || !!t.linhaSpinner;
+  const estava = !t.conv.fim.hidden;
+  t.conv.fim.hidden = !mostrar;
+  if (mostrar) {
+    const desde = s && (s.inicioTurno || s.inicioTurnoAproximado);
+    t.conv.fimTexto.textContent = t.linhaSpinner || ('Trabalhando' + (desde ? ' · ' + fmtDur(agora() - desde) : '') + '…');
+    if (!estava) rolarSeNoFim(t);
+  }
+  atualizarPergunta(t, s);
+}
+
+const BORDA_TUI = /[│┃╭╮╰╯─━┌┐└┘├┤╌╎]/g;
+const OPCAO_TUI = /^\s*([❯›>])?\s*(\d{1,2})[.)]\s+(\S.*)$/;
+const DICA_DIALOGO_TUI = /\b(space to select|enter to (confirm|select)|esc to (cancel|reject|exit|go back))/i;
+function lerTelaDoTerminal(t) {
+  if (!t.term || t.fechada) return;
+  const b = t.term.buffer.active, linhas = [], bordas = new Set();
+  for (let i = b.viewportY; i < b.viewportY + t.term.rows; i++) {
+    const l = b.getLine(i);
+    const crua = l ? l.translateToString(true) : '';
+    if (/^\s*[╭╰┌└─━]{3}/.test(crua) && !crua.replace(BORDA_TUI, '').trim()) bordas.add(linhas.length);  // topo do dialogo
+    linhas.push(crua.replace(BORDA_TUI, ' ').replace(/\s+$/, ''));
+  }
+  const sp = linhas.find(l => /esc to interrupt/i.test(l));
+  t.linhaSpinner = sp ? sp.trim().replace(/^[^\p{L}\p{N}]+/u, '') : '';
+  // menu do CLI: opcoes 1., 2., ... com o cursor ❯ numa delas (lista numerada de resposta nao tem cursor)
+  let opcoes = [], primeira = -1, melhor = null;
+  for (let i = 0; i < linhas.length; i++) {
+    const m = OPCAO_TUI.exec(linhas[i]);
+    if (!m) continue;
+    const n = +m[2];
+    if (n === 1) { if (opcoes.length && opcoes.some(o => o.sel)) melhor = { opcoes, primeira }; opcoes = []; primeira = i; }
+    if (n === opcoes.length + 1) opcoes.push({ n, texto: m[3].trim(), sel: !!m[1] });
+  }
+  if (opcoes.length && opcoes.some(o => o.sel)) melhor = { opcoes, primeira };
+  if (melhor && melhor.opcoes.length >= 2) {
+    let ini = Math.max(0, melhor.primeira - 10);
+    for (let i = melhor.primeira - 1; i >= ini; i--) if (bordas.has(i)) { ini = i + 1; break; }
+    const contexto = linhas.slice(ini, melhor.primeira).map(l => l.trimEnd());
+    while (contexto.length && !contexto[0].trim()) contexto.shift();
+    t.menuTela = { opcoes: melhor.opcoes, contexto: contexto.join('\n').replace(/\n{3,}/g, '\n\n').trim() };
+  } else t.menuTela = null;
+  // dialogo sem opcoes numeradas (servidores MCP do projeto com checkbox, por exemplo): so o terminal responde
+  t.dialogoTela = !t.menuTela && linhas.some(l => DICA_DIALOGO_TUI.test(l));
+  atualizarStatusConversa(t);
+}
+function atualizarPergunta(t, s) {
+  const p = t.pergunta;
+  if (!p || !t.term) return;
+  const menu = t.menuTela;
+  const assinatura = menu ? JSON.stringify(menu) : (t.dialogoTela || (s && s.coluna === 'atencao') ? 'atencao' : '');
+  const escondido = !assinatura || t.modo === 'terminal';  // no modo terminal o proprio menu esta na tela
+  const mudouVisibilidade = p.hidden !== escondido;
+  p.hidden = escondido;
+  if (assinatura === t.assinaturaPergunta) { if (mudouVisibilidade && !escondido) rolarSeNoFim(t); return; }
+  t.assinaturaPergunta = assinatura;
+  p.textContent = '';
+  if (!assinatura) return;
+  if (menu) {
+    if (menu.contexto) p.append(el('pre', null, menu.contexto));
+    const ops = el('div', 'ops');
+    const atual = menu.opcoes.findIndex(o => o.sel);
+    for (const [i, o] of menu.opcoes.entries()) {
+      const b = el('button', 'bt' + (o.sel ? ' sel' : ''), o.n + '. ' + o.texto);
+      b.addEventListener('click', () => escolherOpcao(t, i - atual));
+      ops.append(b);
+    }
+    const esc = el('button', 'bt', 'Esc'); esc.title = 'Cancelar o menu';
+    esc.addEventListener('click', () => enviarTecla(t, '\x1b'));
+    const ver = el('button', 'bt', 'Ver no terminal');
+    ver.addEventListener('click', () => definirModo(t, 'terminal'));
+    ops.append(esc, ver);
+    p.append(ops);
+  } else {
+    p.append(el('pre', null, 'A sessão está esperando você no terminal (permissão, pergunta ou liberar os servidores MCP do projeto).'));
+    const ver = el('button', 'bt', 'Abrir o terminal');
+    ver.addEventListener('click', () => definirModo(t, 'terminal'));
+    p.append(ver);
+  }
+  rolarSeNoFim(t);
+}
+function enviarTecla(t, dados) {
+  if (t.ws && t.ws.readyState === 1) { t.ws.send(dados); return true; }
+  aviso('Terminal desconectado.', true); return false;
+}
+// anda com as setas ate a opcao e confirma com Enter: funciona em qualquer menu do CLI
+function escolherOpcao(t, delta) {
+  const seta = delta > 0 ? '\x1b[B' : '\x1b[A';
+  if (!enviarTecla(t, seta.repeat(Math.abs(delta)) + '\r')) return;
+  t.menuTela = null; t.assinaturaPergunta = 'respondida'; t.pergunta.hidden = true;
+}
+
+// clique na lista: foca a aba que ja mostra a sessao; senao abre (conversa com attach se for --bg, so leitura nas outras)
+function abrirConversaDaSessao(s) {
+  const bg = s.aberta && (s.tipo === 'bg' || s.tipo === 'background') && s.jobId;
+  for (const [chave, t] of terminais) {
+    if (t.fechada) continue;
+    if ((s.jobId && t.job === s.jobId) || t.sidFixo === s.id || (t.conv && t.conv.sid === s.id)) {
+      if (bg && t.sidFixo) continue;  // aba so leitura de uma sessao que agora roda em --bg: abre a que escreve
+      mostrarDoca(true); ativarAba(chave); return;
+    }
+  }
+  if (bg) abrirTerminal(s.jobId, tituloCurto(s, 24));
+  else if (/^[0-9a-f-]{36}$/i.test(s.id)) verConversa(s);
+}
+
+// aba so de leitura: qualquer sessao (aberta no VSCode ou fechada), sem attach
+function verConversa(s) {
+  const chave = 'ver:' + s.id;
+  if (terminais.has(chave)) { mostrarDoca(true); ativarAba(chave); return; }
+  const t = criarAba(chave, tituloCurto(s, 24), true);
+  t.sidFixo = s.id;
+  t.aba.title = 'Somente leitura';
+  const bg = s.tipo === 'bg' || s.tipo === 'background';
+  const nota = el('div', 'nota-leitura', !s.aberta ? 'Somente leitura: sessão fechada.'
+    : bg ? 'Somente leitura: para escrever, use "Abrir conversa" no detalhe.' : 'Somente leitura: esta sessão está aberta no VSCode.');
+  if (!s.aberta) {
+    const b = el('button', 'bt', 'Assumir aqui');
+    b.addEventListener('click', async () => { if (await assumirSessao(s, b)) fecharAba(chave); });
+    nota.append(b);
+  }
+  t.area.append(nota);
+  puxarConversa(t);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) for (const c of colunas) { const t = terminais.get(c.ativa); if (t) puxarConversa(t); } });
+
+// ---------- acoes sobre sessoes ----------
+async function pararSessao(s) {
+  if (!confirm('Parar a sessão em segundo plano "' + tituloCurto(s, 50) + '"?\n\nEla é encerrada (a conversa fica salva e pode ser retomada).')) return;
+  const r = await postar('/api/parar', { id: s.jobId });
+  if (!r.ok) { aviso('Não parou: ' + (r.dados.erro || r.status), true); return; }
+  if (terminais.has(s.jobId)) fecharAba(s.jobId);
+  aviso('Sessão parada.');
+}
+async function assumirSessao(s, botao) {
+  botao.disabled = true; botao.textContent = 'Assumindo…';
+  const r = await postar('/api/assumir', { id: s.id });
+  botao.disabled = false; botao.textContent = 'Assumir aqui';
+  if (!r.ok) { aviso(r.dados.erro || 'Não foi possível assumir (' + r.status + ')', true); return false; }
+  aviso('Sessão retomada em segundo plano.');
+  abrirTerminal(r.dados.jobId, tituloCurto(s, 24));
+  return true;
+}
+
+// ---------- nova sessao ----------
+const dlgNova = document.getElementById('dlg-nova');
+// no inicial do dialogo: o clicado, o do foco, o geral da regiao em foco, o primeiro da regiao, o primeiro com pasta
+function noInicialDoDialogo(lista, noId) {
+  const ids = new Set(lista.map(n => n.id));
+  if (noId && ids.has(noId)) return noId;
+  if (noFoco && ids.has(noFoco)) return noFoco;
+  if (foco.no && ids.has(foco.no)) return foco.no;
+  if (foco.regiao) {
+    const daRegiao = lista.filter(n => n.regiao === foco.regiao);
+    const geral = daRegiao.find(n => n.id === foco.regiao + '/geral');
+    if (geral) return geral.id;
+    if (daRegiao.length) return daRegiao[0].id;
+  }
+  return (lista.find(n => grandes.length && n.id === grandes[0] + '/geral') || lista[0]).id;
+}
+function abrirDialogoNova(noId) {
+  const sel = document.getElementById('nv-no');
+  sel.textContent = '';
+  // so nos com pasta conhecida: o servidor resolve a pasta a partir do no e recusa o resto
+  const lista = todosNos.filter(n => n.caminho).sort((a, b) => a.regiao.localeCompare(b.regiao) || a.nome.localeCompare(b.nome));
+  if (!lista.length) { aviso('Nenhum projeto com pasta conhecida.', true); return; }
+  for (const n of lista) { const o = el('option', null, nomeDaRegiao(n.regiao) + ' / ' + n.nome); o.value = n.id; sel.append(o); }
+  sel.value = noInicialDoDialogo(lista, noId);
+  document.getElementById('nv-prompt').value = '';
+  document.getElementById('nv-nome').value = '';
+  document.getElementById('nv-modelo').value = '';
+  document.getElementById('nv-esforco').value = '';
+  dlgNova.showModal();
+  document.getElementById('nv-prompt').focus();
+}
+document.getElementById('nv-cancelar').addEventListener('click', () => dlgNova.close());
+document.getElementById('form-nova').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!document.getElementById('nv-no').value) { aviso('Escolha o projeto da sessão.', true); return; }
+  const botao = document.getElementById('nv-criar');
+  botao.disabled = true; botao.textContent = 'Criando…';
+  const nome = document.getElementById('nv-nome').value.trim();
+  const modelo = document.getElementById('nv-modelo').value, esforco = document.getElementById('nv-esforco').value;
+  const r = await postar('/api/nova-sessao', { no: document.getElementById('nv-no').value, prompt: document.getElementById('nv-prompt').value, nome, modelo, esforco });
+  botao.disabled = false; botao.textContent = 'Criar e abrir terminal';
+  if (!r.ok) {
+    aviso(r.dados.codigo === 'nao_confiavel' ? 'Esta pasta ainda não é confiável para o Claude: use o botão "+ sessão" (clique direto) nela para confiar.' : (r.dados.erro || 'Não foi possível criar (' + r.status + ')'), true);
+    return;
+  }
+  dlgNova.close();
+  if (esforco) guardarEsforco(r.dados.jobId, esforco);
+  abrirTerminal(r.dados.jobId, nome || r.dados.jobId);
+});
+
+// ---------- menu de clique direito num no ----------
+const menuNo = document.getElementById('menu-no');
+canvas.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  const [px, py] = ptr(e);
+  const n = noEm(px, py);
+  menuNo.hidden = true;
+  if (!n) return;
+  menuNo.textContent = '';
+  const nova = el('button', null, 'Nova sessão aqui');
+  nova.addEventListener('click', () => { menuNo.hidden = true; if (n.caminho) criarSessaoRapida(n.id); else aviso('Este projeto não tem pasta conhecida.', true); });
+  const comOpcoes = el('button', null, 'Nova sessão com opções…');
+  comOpcoes.addEventListener('click', () => { menuNo.hidden = true; abrirDialogoNova(n.id); });
+  const focar = el('button', null, 'Focar neste projeto');
+  focar.addEventListener('click', () => { menuNo.hidden = true; definirFoco(n.regiao, n.id); });
+  menuNo.append(nova, comOpcoes, focar);
+  menuNo.style.left = Math.min(e.clientX, L - 210) + 'px';
+  menuNo.style.top = Math.min(e.clientY, A - 120) + 'px';
+  menuNo.hidden = false;
+});
+document.addEventListener('pointerdown', e => { if (!menuNo.contains(e.target)) menuNo.hidden = true; });
+
+// ---------- dica ----------
+const dica = document.getElementById('dica');
+function mostrarDica(e, s, n) {
+  if (!s && !n) { esconderDica(); return; }
+  dica.textContent = '';
+  if (s) {
+    dica.append(el('b', null, tituloCurto(s, 60)));
+    dica.append(el('small', null, [s.projeto, s.subprojeto].filter(Boolean).join(' / ') + ' · ' + NOME_COLUNA[s.coluna]));
+    dica.append(el('small', null, tempoDe(s, agora())));
+  } else {
+    dica.append(el('b', null, n.nome));
+    dica.append(el('small', null, n.abertas + ' abertas de ' + n.total + ' sessões'));
+  }
+  dica.style.display = 'block';
+  const w = dica.offsetWidth, h = dica.offsetHeight;
+  dica.style.left = Math.min(e.clientX + 16, L - w - 10) + 'px';
+  dica.style.top = Math.min(e.clientY + 16, A - h - 10) + 'px';
+}
+function esconderDica() { dica.style.display = 'none'; }
+
+// ---------- HUD ----------
+function atualizarContadores() {
+  const c = { atencao: 0, trabalhando: 0, suaVez: 0 };
+  for (const s of sessoes.values()) if (c[s.coluna] != null) c[s.coluna]++;
+  document.querySelector('#n-atencao b').textContent = c.atencao;
+  document.querySelector('#n-trabalhando b').textContent = c.trabalhando;
+  document.querySelector('#n-suavez b').textContent = c.suaVez;
+  document.getElementById('n-atencao').classList.toggle('vivo', c.atencao > 0 && escalaMovimento >= 1);
+  atualizarTitulo();
+}
+
+let assinaturaLista = null;
+let refsTempo = [];
+function atualizarLista(forcar) {
+  const abertas = [...sessoes.values()].filter(s => s.aberta && (!busca || s.casa))
+    .sort((a, b) => ORDEM_COLUNA[a.coluna] - ORDEM_COLUNA[b.coluna] || (b.ultimaAtividade || 0) - (a.ultimaAtividade || 0));
+  const assinatura = abertas.map(s => s.id + s.coluna + (s.titulo || '') + (s.id === selecionada ? '*' : '')).join('|');
+  if (!forcar && assinatura === assinaturaLista) return;
+  assinaturaLista = assinatura;
+  const cont = document.getElementById('itens');
+  cont.textContent = '';
+  refsTempo = [];
+  if (!abertas.length) { cont.append(el('div', 'vazio', 'Nenhuma sessão aberta.')); return; }
+  let grupoAtual = null;
+  const contagens = {};
+  for (const s of abertas) contagens[s.coluna] = (contagens[s.coluna] || 0) + 1;
+  for (const s of abertas) {
+    if (s.coluna !== grupoAtual) { grupoAtual = s.coluna; cont.append(el('div', 'grupo', NOME_COLUNA[s.coluna] + ' (' + contagens[s.coluna] + ')')); }
+    const b = el('button', 'item' + (s.id === selecionada ? ' sel' : ''));
+    const ponto = el('span', 'pt'); ponto.style.background = rgba(COR[s.coluna], 1); ponto.style.boxShadow = '0 0 8px ' + rgba(COR[s.coluna], 0.8);
+    const meio = el('span', 'tt', tituloCurto(s, 44));
+    meio.append(el('span', 'pj', [s.projeto, s.subprojeto].filter(Boolean).join(' / ')));
+    const tempo = el('span', 'tp', tempoDe(s, agora()));
+    b.append(ponto, meio, tempo);
+    b.addEventListener('click', () => { selecionar(s.id); centralizar(s); abrirConversaDaSessao(s); });
+    cont.append(b);
+    refsTempo.push([s, tempo]);
+  }
+}
+document.getElementById('alca').addEventListener('click', () => {
+  const rec = document.getElementById('lista').classList.toggle('recolhida');
+  const a = document.getElementById('alca');
+  a.classList.toggle('recolhida', rec);
+  a.innerHTML = rec ? '&rsaquo;' : '&lsaquo;';
+});
+
+function centralizar(s) {
+  if (!s) return;
+  seguindo = s.id;
+  alvo.k = Math.max(alvo.k, 1.1);
+}
+
+// ---------- detalhe: subagentes, advisor, custo por modelo, linha do tempo ----------
+const COR_MODELO = { opus: [180, 120, 255], sonnet: [255, 150, 60], haiku: [70, 210, 120], fable: [80, 170, 255] };
+function corDoModelo(m) {
+  const k = Object.keys(COR_MODELO).find(x => (m || '').includes(x));
+  return k ? COR_MODELO[k] : [150, 160, 175];
+}
+function nomeCurtoModelo(m) { return (m || '?').replace(/^claude-/, '').replace(/-\d{8}$/, ''); }
+let extra = null, extraAss = '', buscandoExtra = false;
+function coresSatelites(s) {
+  // sessao selecionada com detalhe carregado: um satelite por subagente rodando, na cor do modelo real
+  if (extra && extra.id === s.id) {
+    const cores = extra.subagentes.filter(x => x.status === 'rodando').map(x => corDoModelo(x.modelo));
+    if (cores.length || !s.subagentesRodando) return cores;
+  }
+  return Array.from({ length: s.subagentesRodando || 0 }, () => [120, 220, 255]);
+}
+async function buscarExtra() {
+  const id = selecionada;
+  if (!id || buscandoExtra) return;
+  buscandoExtra = true;
+  try {
+    const r = await fetch('/api/sessao/' + encodeURIComponent(id), { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    const d = await r.json();
+    if (selecionada !== id) return;
+    const ass = JSON.stringify(d, (k, v) => k === 'geradoEm' ? undefined : v);
+    if (ass !== extraAss) { extra = d; extraAss = ass; renderExtra(); }
+  } catch (_) { /* tenta de novo em 3 s */ } finally { buscandoExtra = false; }
+}
+setInterval(() => { if (selecionada && !document.hidden) buscarExtra(); }, 3000);
+
+const dolar = v => 'US$ ' + (v < 0.01 && v > 0 ? '<0,01' : v.toFixed(2).replace('.', ','));
+const hora = t => t ? new Date(t * 1000).toLocaleTimeString('pt-BR') : '';
+function textoTempoSub(x, t) {
+  if (x.status === 'rodando') return 'rodando há ' + fmtDur(t - (x.inicio || t));
+  const fim = x.fim || x.atualizadoEm;
+  if (x.status === 'concluido') return 'durou ' + fmtDur(x.duracao || 0) + ' · terminou há ' + fmtDur(t - fim);
+  return 'parado há ' + fmtDur(t - x.atualizadoEm);
+}
+function renderExtra() {
+  const alvoEl = document.getElementById('d-extra');
+  if (!alvoEl) return;
+  alvoEl.textContent = '';
+  if (!extra || extra.id !== selecionada) { alvoEl.append(el('div', 'nota', 'Carregando subagentes…')); return; }
+  const t = agora();
+  const subs = extra.subagentes;
+  const rod = subs.filter(x => x.status === 'rodando').length;
+  alvoEl.append(el('div', 'bloco', 'Subagentes (' + subs.length + (rod ? ', ' + rod + ' rodando' : '') + ')'));
+  if (!subs.length) alvoEl.append(el('div', 'nota', 'Nenhum subagente nesta sessão.'));
+  const arv = el('div', 'arvore');
+  for (const x of subs.slice().reverse()) {
+    const linha = el('div', 'sub');
+    const l1 = el('div', 'l1');
+    const pm = el('span', 'pm'); const c = corDoModelo(x.modelo);
+    pm.style.background = rgba(c, 1); pm.style.boxShadow = '0 0 7px ' + rgba(c, 0.8); pm.title = x.modelo || 'modelo desconhecido';
+    l1.append(pm, el('span', 'tp', x.tipo), el('span', 'ds', x.descricao), el('span', 'cs', dolar(x.custo)));
+    const l2 = el('div', 'l2');
+    const st = el('span', 'st-' + x.status, x.status === 'concluido' ? 'concluído' : x.status);
+    const tm = el('span', 'tm', textoTempoSub(x, t));
+    tm.dataset.sub = x.id;
+    l2.append(st, document.createTextNode(' · '), tm, document.createTextNode(' · ' + nomeCurtoModelo(x.modelo) + ' · ' + x.ferramentas + ' ferramentas'));
+    if (x.ultima) l2.append(document.createTextNode(' · última: ' + x.ultima.ferramenta + (x.ultima.resumo ? ' ' + x.ultima.resumo : '')));
+    linha.append(l1, l2);
+    arv.append(linha);
+  }
+  alvoEl.append(arv);
+
+  const adv = extra.advisor;
+  alvoEl.append(el('div', 'bloco', 'Advisor'));
+  if (!adv.consultas.length) alvoEl.append(el('div', 'nota', 'Sem consultas ao advisor.'));
+  else {
+    alvoEl.append(el('div', null, adv.consultas.length + ' consulta(s) · ' + dolar(adv.custo)));
+    const lt = el('div', 'linha-tempo');
+    for (const e of adv.consultas.slice(-8).reverse()) {
+      const d = el('div');
+      d.append(el('span', 'h', hora(e.ts)), el('span', 'f', nomeCurtoModelo(e.modelo)),
+        el('span', 'r', 'leu ' + Math.round(e.tokensLidos / 1000) + 'k tokens · ' + dolar(e.custo)));
+      lt.append(d);
+    }
+    alvoEl.append(lt);
+  }
+
+  alvoEl.append(el('div', 'bloco', 'Custo por modelo'));
+  const maximo = Math.max(0.0001, ...extra.custoPorModelo.map(m => m.custo));
+  for (const m of extra.custoPorModelo) {
+    const b = el('div', 'barra-custo');
+    const cel = el('div');
+    cel.append(el('div', 'nm', nomeCurtoModelo(m.modelo) + ' · ' + m.chamadas + ' chamadas'));
+    const tr = el('div', 'tr'); const pr = el('div', 'pr');
+    pr.style.width = Math.max(2, (m.custo / maximo) * 100) + '%'; pr.style.background = rgba(corDoModelo(m.modelo), 0.9);
+    tr.append(pr); cel.append(tr);
+    b.append(cel, el('div', 'vl', dolar(m.custo)));
+    alvoEl.append(b);
+  }
+  if (extra.parcial) alvoEl.append(el('div', 'nota', 'Transcrito grande: o custo da sessão principal vem só dos últimos ~4 MB.'));
+
+  alvoEl.append(el('div', 'bloco', 'Últimas ferramentas'));
+  const lt = el('div', 'linha-tempo');
+  for (const f of extra.ferramentas.slice().reverse()) {
+    const d = el('div');
+    d.append(el('span', 'h', hora(f.ts)), el('span', 'f', f.ferramenta), el('span', 'r', f.resumo));
+    lt.append(d);
+  }
+  if (!extra.ferramentas.length) lt.append(el('div', 'nota', 'Nenhuma ferramenta registrada.'));
+  alvoEl.append(lt);
+}
+function atualizarTemposExtra() {
+  if (!extra) return;
+  const t = agora();
+  for (const e of document.querySelectorAll('#d-extra .tm')) {
+    const x = extra.subagentes.find(y => y.id === e.dataset.sub);
+    if (x) { const v = textoTempoSub(x, t); if (e.textContent !== v) e.textContent = v; }
+  }
+}
+
+function selecionar(id) {
+  if (selecionada !== id) { extra = null; extraAss = ''; }
+  selecionada = id;
+  const sel = sessoes.get(id);
+  if (sel) noSel = sel.no;
+  assinaturaLista = '';
+  atualizarLista(true);
+  atualizarDetalhe(true);
+  buscarExtra();
+}
+function fecharDetalhe() {
+  selecionada = null; seguindo = null; extra = null; extraAss = '';
+  document.getElementById('detalhe').classList.remove('aberto');
+  assinaturaLista = '';
+  atualizarLista(true);
+}
+
+let assinaturaDetalhe = '';
+function atualizarDetalhe(abrir) {
+  const s = sessoes.get(selecionada);
+  const painel = document.getElementById('detalhe');
+  if (!s) return;
+  const t = agora();
+  const aproximado = !s.inicioTurno && !!s.inicioTurnoAproximado && s.coluna === 'trabalhando';
+  const emAndamento = (s.inicioTurno && (!s.fimTurno || s.fimTurno < s.inicioTurno)) || aproximado;
+  const assinatura = JSON.stringify([s.id, s.coluna, s.titulo, s.branch, s.inicioTurno, s.inicioTurnoAproximado, s.fimTurno, s.ultimoPrompt, s.ultimaResposta, s.prs, s.custo, s.aberta, s.tipo, s.jobId]);
+  if (!abrir && assinatura === assinaturaDetalhe) { atualizarTempoDetalhe(s, t, emAndamento); return; }
+  assinaturaDetalhe = assinatura;
+  painel.textContent = '';
+  const topo = el('div', 'topo');
+  const fechar = el('button', 'bt fechar', '×');
+  fechar.setAttribute('aria-label', 'Fechar detalhe');
+  fechar.addEventListener('click', fecharDetalhe);
+  topo.append(el('h3', null, s.titulo || s.nome || s.primeiroPrompt || s.id), fechar);
+  painel.append(topo);
+  const selo = el('span', 'selo', NOME_COLUNA[s.coluna]);
+  selo.style.color = rgba(COR[s.coluna], 1);
+  painel.append(selo);
+
+  const dl = el('dl');
+  const linha = (rot, val, id) => { const dd = el('dd', null, val); if (id) dd.id = id; dl.append(el('dt', null, rot), dd); };
+  linha('Projeto', [s.projeto, s.subprojeto].filter(Boolean).join(' / ') || '—');
+  linha('Branch', s.branch || '—');
+  linha('Pasta', s.cwd || '—');
+  linha('Início da sessão', '', 'd-inicio');
+  linha('Turno atual', '', 'd-turno');
+  linha('Fim do turno', '', 'd-fim');
+  linha('Custo', s.custo != null ? 'US$ ' + s.custo.toFixed(2) : '—');
+  if (s.subagentesRodando) linha('Subagentes', s.subagentesRodando + ' rodando');
+  painel.append(dl);
+
+  painel.append(el('div', 'bloco', 'Último prompt'));
+  painel.append(el('div', 'texto', s.ultimoPrompt || '—'));
+  painel.append(el('div', 'bloco', 'Última resposta'));
+  painel.append(el('div', 'texto', s.ultimaResposta || '—'));
+
+  const prs = (s.prs || []).filter(p => /^https?:\/\//.test(p.url || ''));
+  if (prs.length) {
+    painel.append(el('div', 'bloco', 'Pull requests'));
+    const ul = el('div');
+    for (const p of prs) {
+      const a = el('a', null, (p.repo ? p.repo.split('/').pop() : 'PR') + (p.numero ? ' #' + p.numero : ''));
+      a.href = p.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      ul.append(a, document.createElement('br'));
+    }
+    painel.append(ul);
+  }
+
+  const acoes = el('div', 'acoes');
+  const bg = s.tipo === 'bg' || s.tipo === 'background';
+  if (/^[0-9a-f-]{8,64}$/i.test(s.id)) {
+    const a = el('a', 'bt acao', 'Abrir no VSCode');
+    a.href = 'vscode://anthropic.claude-code/open?session=' + encodeURIComponent(s.id);
+    acoes.append(a);
+  }
+  if (s.aberta && bg && s.jobId) {
+    const t1 = el('button', 'bt', 'Abrir conversa');
+    t1.title = 'Conversa e terminal desta sessão em segundo plano';
+    t1.addEventListener('click', () => abrirTerminal(s.jobId, tituloCurto(s, 24)));
+    const t2 = el('button', 'bt perigo', 'Parar');
+    t2.addEventListener('click', () => pararSessao(s));
+    acoes.append(t1, t2);
+  } else if (/^[0-9a-f-]{36}$/i.test(s.id)) {
+    const v = el('button', 'bt', 'Ver conversa');
+    v.title = 'Lê a conversa (somente leitura)';
+    v.addEventListener('click', () => verConversa(s));
+    acoes.append(v);
+  }
+  if (!s.aberta) {
+    const t3 = el('button', 'bt', 'Assumir aqui');
+    t3.title = 'Retoma esta conversa em segundo plano e abre o terminal';
+    t3.addEventListener('click', () => assumirSessao(s, t3));
+    acoes.append(t3);
+  }
+  painel.append(acoes);
+  if (s.aberta && !bg) {
+    painel.append(el('div', 'nota', 'Aberta numa aba do VSCode: para assumir aqui, feche a aba no VSCode antes. Duas pontas escrevendo na mesma conversa a corromperiam.'));
+  }
+  const exEl = el('div'); exEl.id = 'd-extra';
+  painel.append(exEl);
+  renderExtra();
+  painel.classList.add('aberto');
+  atualizarTempoDetalhe(s, t, emAndamento);
+}
+function atualizarTempoDetalhe(s, t, emAndamento) {
+  const set = (id, v) => { const e = document.getElementById(id); if (e && e.textContent !== v) e.textContent = v; };
+  set('d-inicio', s.inicioSessao ? fmtData(s.inicioSessao) + ' (há ' + fmtDur(t - s.inicioSessao) + ')' : '—');
+  set('d-turno', !s.inicioTurno ? (s.inicioTurnoAproximado && s.coluna === 'trabalhando'
+      ? 'em andamento há mais de ' + fmtDur(t - s.inicioTurnoAproximado) + ' (início fora do trecho lido)' : '—')
+    : emAndamento ? fmtData(s.inicioTurno) + ' (em andamento há ' + fmtDur(t - s.inicioTurno) + ')'
+      : fmtData(s.inicioTurno) + ' (durou ' + fmtDur(s.fimTurno - s.inicioTurno) + ')');
+  set('d-fim', s.fimTurno && !emAndamento ? fmtData(s.fimTurno) + ' (há ' + fmtDur(t - s.fimTurno) + ')' : (emAndamento ? 'em andamento' : '—'));
+}
+
+// ---------- uso do plano (status line -> /api/uso) ----------
+let usoDados = null, usoBuscadoEm = 0;
+const corUso = p => p > 90 ? '#ff3b4f' : p > 70 ? '#ffb020' : '#3ddc84';
+const NOME_JANELA = { five_hour: 'Sessão (5h)', seven_day: 'Semanal (7d)' };
+function segundosAte(w) { return w && w.resetsEm != null ? Math.max(0, w.resetsEm - (Date.now() - usoBuscadoEm) / 1000) : null; }
+function textoZera(w) {
+  const seg = segundosAte(w);
+  return seg == null ? (w && w.zerada ? 'zerou' : '') : 'zera em ' + fmtDur(seg);
+}
+function renderUso() {
+  const corpo = document.getElementById('uso-corpo');
+  const aneis = document.getElementById('uso-aneis');
+  corpo.textContent = '';
+  if (!usoDados || !usoDados.disponivel) {
+    corpo.append(el('div', 'nota', 'Sem dados ainda: o uso chega pelo status line depois da primeira resposta de uma sessão.'));
+    aneis.hidden = true;
+    return;
+  }
+  aneis.textContent = ''; aneis.hidden = false;
+  const dicas = [];
+  for (const nome of ['five_hour', 'seven_day']) {
+    const w = usoDados[nome];
+    if (!w) continue;
+    const p = Math.round(w.usado);
+    const linha = el('div', 'uso-linha');
+    const l1 = el('div', 'l1'); l1.append(el('span', null, NOME_JANELA[nome]), el('b', null, p + '%'));
+    const barra = el('div', 'uso-barra'); const prog = el('i');
+    prog.style.width = Math.min(100, w.usado) + '%'; prog.style.background = corUso(w.usado);
+    barra.append(prog);
+    const l2 = el('div', 'l2', textoZera(w)); l2.dataset.janela = nome;
+    linha.append(l1, barra, l2);
+    corpo.append(linha);
+    dicas.push(NOME_JANELA[nome] + ': ' + p + '%' + (textoZera(w) ? ' · ' + textoZera(w) : ''));
+    // anel pequeno na barra superior
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('width', '22'); svg.setAttribute('height', '22'); svg.setAttribute('viewBox', '0 0 22 22');
+    const fundo = document.createElementNS(NS, 'circle'); const arco = document.createElementNS(NS, 'circle');
+    for (const c of [fundo, arco]) { c.setAttribute('cx', '11'); c.setAttribute('cy', '11'); c.setAttribute('r', '8'); c.setAttribute('fill', 'none'); c.setAttribute('stroke-width', '3'); }
+    fundo.setAttribute('stroke', 'rgba(255,255,255,0.12)');
+    const circ = 2 * Math.PI * 8;
+    arco.setAttribute('stroke', corUso(w.usado)); arco.setAttribute('stroke-linecap', 'round');
+    arco.setAttribute('stroke-dasharray', (circ * Math.min(100, w.usado) / 100) + ' ' + circ); arco.setAttribute('transform', 'rotate(-90 11 11)');
+    const tx = document.createElementNS(NS, 'text'); tx.setAttribute('x', '11'); tx.setAttribute('y', '14'); tx.setAttribute('text-anchor', 'middle');
+    tx.setAttribute('font-size', '7'); tx.setAttribute('fill', '#9db0cc'); tx.textContent = nome === 'five_hour' ? '5h' : '7d';
+    svg.append(fundo, arco, tx); aneis.append(svg);
+  }
+  const velho = usoDados.velho;
+  const nota = el('div', null, usoDados.idade != null ? 'atualizado há ' + fmtDur(usoDados.idade + (Date.now() - usoBuscadoEm) / 1000) : '');
+  nota.id = 'uso-nota'; nota.dataset.idade = usoDados.idade;
+  if (velho) nota.textContent += ' · abra uma sessão para atualizar';
+  corpo.append(nota);
+  aneis.title = dicas.join('\n') + (velho ? '\n(dado antigo: abra uma sessão para atualizar)' : '');
+}
+function tiqueUso() {  // atualiza so os textos de tempo, sem refazer o bloco
+  if (!usoDados || !usoDados.disponivel) return;
+  for (const l2 of document.querySelectorAll('#uso-corpo .l2')) { const v = textoZera(usoDados[l2.dataset.janela]); if (l2.textContent !== v) l2.textContent = v; }
+  const nota = document.getElementById('uso-nota');
+  if (nota && usoDados.idade != null) nota.textContent = 'atualizado há ' + fmtDur(usoDados.idade + (Date.now() - usoBuscadoEm) / 1000) + (usoDados.velho || (usoDados.idade + (Date.now() - usoBuscadoEm) / 1000) > 1800 ? ' · abra uma sessão para atualizar' : '');
+}
+async function buscarUso() {
+  try {
+    const r = await fetch('/api/uso', { cache: 'no-store' });
+    if (r.ok) { usoDados = await r.json(); usoBuscadoEm = Date.now(); renderUso(); }
+  } catch (_) { /* mantem o ultimo valor */ }
+}
+setInterval(buscarUso, 30000);
+(function usoRecolhivel() {
+  const caixa = document.getElementById('uso'), cab = document.getElementById('uso-cab');
+  try { if (localStorage.getItem('mapa.usoRecolhido') === '1') { caixa.classList.add('recolhido'); cab.setAttribute('aria-expanded', 'false'); document.getElementById('uso-seta').textContent = '▸'; } } catch (_) { /* opcional */ }
+  cab.addEventListener('click', () => {
+    const rec = caixa.classList.toggle('recolhido');
+    cab.setAttribute('aria-expanded', String(!rec));
+    document.getElementById('uso-seta').textContent = rec ? '▸' : '▾';
+    try { localStorage.setItem('mapa.usoRecolhido', rec ? '1' : '0'); } catch (_) { /* opcional */ }
+  });
+})();
+
+// ---------- relogio e atualizacao periodica ----------
+function tique() {
+  const d = new Date();
+  document.getElementById('relogio').textContent = d.toLocaleTimeString('pt-BR');
+  const t = agora();
+  for (const [s, e] of refsTempo) { const v = tempoDe(s, t); if (e.textContent !== v) e.textContent = v; }
+  if (selecionada) { const s = sessoes.get(selecionada); if (s) atualizarDetalhe(false); atualizarTemposExtra(); }
+  tiqueUso();
+  for (const term of terminais.values()) atualizarStatusConversa(term);
+  document.getElementById('conexao').classList.toggle('off', performance.now() - ultimoEstado > 8000 && ultimoEstado > 0);
+}
+setInterval(tique, 1000);
+
+async function buscar() {
+  try {
+    const r = await fetch('/api/estado', { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    aplicarEstado(await r.json());
+    restaurarLayout();
+    if (primeiroEnquadre) { primeiroEnquadre = false; enquadrar(); cam.x = alvo.x; cam.y = alvo.y; cam.k = alvo.k; }
+  } catch (_) { /* a barra mostra "sem conexão" apos 8 s */ }
+  setTimeout(buscar, document.hidden ? 10000 : 2000);
+}
+let primeiroEnquadre = true;
+
+foco = lerFocoDaUrl();
+sincronizarFoco();
+buscarUso();
+aoRedimensionar();
+canvas.style.cursor = 'grab';
+requestAnimationFrame(quadro);
+buscar();
+tique();
+</script>
+</body>
+</html>

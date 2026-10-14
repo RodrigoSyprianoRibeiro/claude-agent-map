@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <radialGradient id="fundo" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#16294d"/><stop offset="1" stop-color="#05080f"/>
+    </radialGradient>
+    <radialGradient id="nucleo" cx="35%" cy="30%" r="80%">
+      <stop offset="0" stop-color="#7fb6ff"/><stop offset="1" stop-color="#1c3f7a"/>
+    </radialGradient>
+    <filter id="brilho" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.4"/></filter>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#fundo)"/>
+  <g fill="none" stroke="#7aa2e0" stroke-opacity="0.45" stroke-width="1.6">
+    <ellipse cx="64" cy="64" rx="26" ry="26"/>
+    <ellipse cx="64" cy="64" rx="44" ry="44" stroke-dasharray="2 5"/>
+    <ellipse cx="64" cy="64" rx="52" ry="22" transform="rotate(-28 64 64)"/>
+  </g>
+  <circle cx="64" cy="64" r="13" fill="url(#nucleo)" stroke="#b9d6ff" stroke-width="1.6"/>
+  <g filter="url(#brilho)" opacity="0.9">
+    <circle cx="90" cy="64" r="7" fill="#ff3b4f"/><circle cx="41" cy="45" r="7" fill="#ffb020"/>
+    <circle cx="82" cy="94" r="6" fill="#3ddc84"/><circle cx="104" cy="44" r="5" fill="#b88cff"/>
+  </g>
+  <circle cx="90" cy="64" r="5" fill="#ff3b4f"/><circle cx="41" cy="45" r="5" fill="#ffb020"/>
+  <circle cx="82" cy="94" r="4.4" fill="#3ddc84"/><circle cx="104" cy="44" r="3.6" fill="#b88cff"/>
+  <circle cx="24" cy="86" r="3" fill="#7b8494"/><circle cx="30" cy="104" r="2.4" fill="#7b8494" opacity="0.7"/>
+</svg>
